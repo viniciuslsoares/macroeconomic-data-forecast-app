@@ -1,4 +1,4 @@
-- Vinicius Leme Soares (RA260727)
+- Nome do Beltrano(RAZZZZZ)
 - Caio Azevedo Dal Porto (RA256709)
 - Eduarto Rittner (RA250960)
 - Lucas Bellusci D'Andréa (RA206009)
