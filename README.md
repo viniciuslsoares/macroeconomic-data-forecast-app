@@ -1,4 +1,5 @@
 # MC426
+
 Repository for software engineering course projects
 
 Participantes:
@@ -6,6 +7,5 @@ Participantes:
 - Caio Azevedo Dal Porto - 256709
 - Eduarto Rittner - 250960
 - Lucas Bellusci D'Andréa - 206009
-**
-Project idea
-**
+
+## Project idea
