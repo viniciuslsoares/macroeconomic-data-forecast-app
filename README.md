@@ -6,6 +6,6 @@ Participantes:
 - Vinicius Leme Soares - 260727
 - Caio Azevedo Dal Porto - 256709
 - Eduardo Rittner Coelho - 250960
-- Lucas Bellusci D'Andrea - 206009
+- Lucas Bellusci D'Andréa - 206009
 
 ## Project idea
