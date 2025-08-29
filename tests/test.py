@@ -1,3 +1,3 @@
 # Prevents CI from failling with no tests
-def placeholder():
+def test_placeholder():
     assert True
