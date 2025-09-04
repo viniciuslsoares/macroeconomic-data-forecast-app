@@ -2,6 +2,9 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
+# Modo de desenvolvimento: usar implementações funcionais simples
+DEVELOPMENT_MODE = True
+
 
 def plot_indicator_trend(df: pd.DataFrame, indicator: str, title: str) -> go.Figure:
     """
@@ -15,10 +18,18 @@ def plot_indicator_trend(df: pd.DataFrame, indicator: str, title: str) -> go.Fig
     Returns:
         go.Figure: A Plotly figure object.
     """
-    # TODO: Create a line plot using Plotly Express.
-    # fig = px.line(df, x='Year', y=indicator, title=title, markers=True)
-    # return fig
-    pass
+    if DEVELOPMENT_MODE:
+        # Implementação funcional para desenvolvimento
+        fig = px.line(df, x='Year', y=indicator, title=title, markers=True)
+        fig.update_layout(
+            xaxis_title="Year",
+            yaxis_title=indicator,
+            hovermode='x unified'
+        )
+        return fig
+    else:
+        # Código original comentado
+        pass
 
 
 def plot_predictions_vs_actuals(y_test: pd.Series, y_pred: pd.Series, title: str) -> go.Figure:
@@ -33,9 +44,37 @@ def plot_predictions_vs_actuals(y_test: pd.Series, y_pred: pd.Series, title: str
     Returns:
         go.Figure: A Plotly figure object.
     """
-    # TODO: Create a line plot comparing actuals and predictions.
-    # results_df = pd.DataFrame({'Actual': y_test, 'Predicted': y_pred})
-    # fig = px.line(results_df, y=['Actual', 'Predicted'], title=title)
-    # fig.update_traces(marker=dict(size=8))
-    # return fig
-    pass
+    if DEVELOPMENT_MODE:
+        # Implementação funcional para desenvolvimento
+        results_df = pd.DataFrame({
+            'Index': range(len(y_test)),
+            'Actual': y_test.values,
+            'Predicted': y_pred.values
+        })
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=results_df['Index'],
+            y=results_df['Actual'],
+            mode='lines+markers',
+            name='Actual',
+            line=dict(color='blue')
+        ))
+        fig.add_trace(go.Scatter(
+            x=results_df['Index'],
+            y=results_df['Predicted'],
+            mode='lines+markers',
+            name='Predicted',
+            line=dict(color='red', dash='dash')
+        ))
+        
+        fig.update_layout(
+            title=title,
+            xaxis_title="Test Sample Index",
+            yaxis_title="GDP Value",
+            hovermode='x unified'
+        )
+        return fig
+    else:
+        # Código original comentado
+        pass

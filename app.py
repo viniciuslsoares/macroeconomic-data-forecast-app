@@ -5,11 +5,16 @@ from src.data_processing import fetch_world_bank_data, preprocess_data
 from src.model_training import prepare_data, train_model, evaluate_model, make_prediction, MODELS
 from src.visualization import plot_indicator_trend, plot_predictions_vs_actuals
 
-# --- Page Configuration ---
-st.set_page_config(page_title="Economic Predictor",
-                   page_icon="📈", layout="wide")
+# --- 1. Page Configuration ---
+st.set_page_config(
+    page_title="Economic Indicator Predictor",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# --- Constants & Configuration ---
+# --- 2. Constants & Configuration ---
+# (No changes here, logic remains the same)
 COUNTRIES = {"Brazil": "BRA", "Canada": "CAN"}
 INDICATORS = {
     'NY.GDP.MKTP.CD': 'GDP (current US$)',
@@ -22,102 +27,160 @@ START_YEAR = 2000
 END_YEAR = 2023
 TARGET_COLUMN = 'GDP (current US$)'
 FEATURES = list(INDICATORS.values())
-# Ensure the target column is not in the features list for training
 if TARGET_COLUMN in FEATURES:
     FEATURES.remove(TARGET_COLUMN)
 FEATURES.append('Year')
 
 
-# --- Data Loading ---
+# --- 3. Data Loading ---
 @st.cache_data
 def load_data():
     """Fetches and preprocesses data from the World Bank. Caches the result."""
-    st.write("Fetching and preprocessing data... This may take a moment.")
-    raw_data = fetch_world_bank_data(
-        list(COUNTRIES.values()), INDICATORS, START_YEAR, END_YEAR)
-    processed_data = preprocess_data(raw_data)
+    with st.spinner("Fetching and preprocessing data from the World Bank API... This may take a moment."):
+        raw_data = fetch_world_bank_data(
+            list(COUNTRIES.values()), INDICATORS, START_YEAR, END_YEAR)
+        processed_data = preprocess_data(raw_data)
     return processed_data
 
 
-# --- Main Application Logic ---
-st.title("📈 Economic Indicator Prediction Dashboard")
-
-# Load data once and cache it
+# --- Load data once and cache it ---
 main_data = load_data()
 
-# --- Sidebar for User Inputs ---
-st.sidebar.header("⚙️ Configuration")
-selected_country_name = st.sidebar.selectbox(
-    "Select Country", list(COUNTRIES.keys()))
-selected_country_code = COUNTRIES[selected_country_name]
 
-selected_model = st.sidebar.selectbox("Select Model", list(MODELS.keys()))
+# --- 4. Sidebar for User Inputs ---
+with st.sidebar:
+    st.image("https://streamlit.io/images/brand/streamlit-logo-secondary-colormark-darktext.png", width=200)
+    st.title("⚙️ Configuration Panel")
+    st.markdown(
+        "Select the country and the machine learning model to be used for the prediction.")
 
-st.sidebar.markdown("---")
-if st.sidebar.button("Train Model and Predict", type="primary"):
-    # Filter data for the selected country
-    country_data = main_data[main_data['economy']
-                             == selected_country_code].copy()
+    selected_country_name = st.selectbox(
+        "Select Country", list(COUNTRIES.keys()))
+    selected_country_code = COUNTRIES[selected_country_name]
 
-    # 1. Prepare Data
-    X_train, X_test, y_train, y_test = prepare_data(
-        country_data, TARGET_COLUMN, FEATURES)
-    st.session_state['X_test'] = X_test  # Store for later use
-    st.session_state['y_test'] = y_test
+    selected_model = st.selectbox("Select Model", list(MODELS.keys()))
 
-    # 2. Train Model
-    model = train_model(X_train, y_train, selected_model)
-    st.session_state['trained_model'] = model
+    st.markdown("---")
 
-    # 3. Evaluate Model
-    metrics = evaluate_model(model, X_test, y_test)
-    st.session_state['metrics'] = metrics
+    # The button click triggers the training and saves results to session_state
+    if st.button("Train Model & Predict", type="primary", use_container_width=True):
+        with st.spinner("Training model... Please wait."):
+            country_data = main_data[main_data['economy']
+                                     == selected_country_code].copy()
 
-    # 4. Make Prediction for the next year
-    last_known_features = country_data.sort_values(
-        by='Year').iloc[[-1]][FEATURES]
-    next_year_prediction = make_prediction(model, last_known_features)
-    st.session_state['prediction'] = next_year_prediction
+            X_train, X_test, y_train, y_test = prepare_data(
+                country_data, TARGET_COLUMN, FEATURES)
+            st.session_state['X_test'], st.session_state['y_test'] = X_test, y_test
+
+            model = train_model(X_train, y_train, selected_model)
+            st.session_state['trained_model'] = model
+
+            metrics = evaluate_model(model, X_test, y_test)
+            st.session_state['metrics'] = metrics
+
+            last_known_features = country_data.sort_values(
+                by='Year').iloc[[-1]][FEATURES]
+            prediction = make_prediction(model, last_known_features)
+            st.session_state['prediction'] = prediction
+            st.success("Model trained successfully!")
 
 
-# --- Main Application Body ---
+# --- 5. Main Application Body ---
+st.title("📈 Economic Indicator Prediction Dashboard")
+st.markdown(f"Currently analyzing: **{selected_country_name}**")
 
-st.header(f"Data and Trends for {selected_country_name}")
+# UI IMPROVEMENT: Using tabs to organize the content into logical sections.
+tab1, tab2 = st.tabs(["📊 Data Exploration & Visualization",
+                     "🧠 Model Training & Prediction"])
 
-# Display preprocessed data for the selected country
-st.dataframe(main_data[main_data['economy'] == selected_country_code])
+# --- Tab 1: Data Exploration ---
+with tab1:
+    st.header("Initial Data Analysis", divider='rainbow')
 
-# Display a plot for a selected indicator
-indicator_to_plot = st.selectbox(
-    "Select indicator to visualize", list(INDICATORS.values()))
-if indicator_to_plot:
-    country_df_viz = main_data[main_data['economy'] == selected_country_code]
-    fig_trend = plot_indicator_trend(
-        country_df_viz, indicator_to_plot, f"{indicator_to_plot} for {selected_country_name}")
-    st.plotly_chart(fig_trend, use_container_width=True)
+    # UI IMPROVEMENT: Using a container to create a visual "box" for the data table.
+    with st.container(border=True):
+        st.subheader("Preprocessed Data Table")
+        st.caption(
+            f"Displaying the last 10 years of available data for {selected_country_name}. The model will be trained on this dataset.")
+        st.dataframe(main_data[main_data['economy'] ==
+                     selected_country_code].tail(10))
 
-st.markdown("---")
+    st.write("")  # Adds vertical space
 
-st.header(f"Model Training Results for {selected_country_name}")
+    # UI IMPROVEMENT: Another container for the interactive plot.
+    with st.container(border=True):
+        st.subheader("Indicator Trends Over Time")
+        indicator_to_plot = st.selectbox(
+            "Select an indicator to visualize its trend:",
+            list(INDICATORS.values()),
+            key="indicator_selector"
+        )
+        if indicator_to_plot:
+            country_df_viz = main_data[main_data['economy']
+                                       == selected_country_code]
+            fig_trend = plot_indicator_trend(
+                country_df_viz, indicator_to_plot, f"{indicator_to_plot} for {selected_country_name}")
+            st.plotly_chart(fig_trend, use_container_width=True)
 
-if 'metrics' in st.session_state:
-    st.subheader("Prediction for Next Year")
-    pred_value = st.session_state['prediction']
-    st.info(
-        f"**Predicted {TARGET_COLUMN} for {END_YEAR + 1}:** `${pred_value:,.2f}`")
+# --- Tab 2: Model Training & Prediction ---
+with tab2:
+    st.header("Machine Learning Results", divider='rainbow')
 
-    st.subheader("Model Performance Metrics")
-    metrics = st.session_state['metrics']
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Mean Absolute Error (MAE)", f"${metrics['MAE']:,.2f}")
-    col2.metric("Mean Squared Error (MSE)", f"${metrics['MSE']:,.2f}")
-    col3.metric("R-squared (R²)", f"{metrics['R2 Score']:.3f}")
+    # UI IMPROVEMENT: Check if the model has been trained before showing results.
+    if 'metrics' not in st.session_state:
+        st.info(
+            "Please click the 'Train Model & Predict' button in the sidebar to see the results.")
+        st.image(
+            "https://media1.tenor.com/m/y2uA8hd_3tEAAAAC/what-are-you-waiting-for-do-it.gif", width=300)
+    else:
+        # UI IMPROVEMENT: A dedicated container for the main prediction result.
+        with st.container(border=True):
+            st.subheader(f"🔮 GDP Prediction for {END_YEAR + 1}")
+            pred_value = st.session_state['prediction']
+            st.metric(
+                label=f"Predicted {TARGET_COLUMN}",
+                value=f"${pred_value:,.0f}",
+                help="This is the model's prediction for the next year based on the latest available data."
+            )
 
-    st.subheader("Actual vs. Predicted Values on Test Set")
-    model = st.session_state['trained_model']
-    y_pred = model.predict(st.session_state['X_test'])
-    fig_pred = plot_predictions_vs_actuals(
-        st.session_state['y_test'], y_pred, f"Model Predictions vs. Actuals for {selected_country_name}")
-    st.plotly_chart(fig_pred, use_container_width=True)
-else:
-    st.info("Click 'Train Model and Predict' in the sidebar to see the results.")
+        st.write("")  # Adds vertical space
+
+        # UI IMPROVEMENT: Two columns for a balanced layout.
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # UI IMPROVEMENT: Container for model performance metrics.
+            with st.container(border=True):
+                st.subheader("📊 Model Performance Metrics")
+                st.caption(
+                    "These metrics evaluate the model's accuracy on the unseen test dataset.")
+                metrics = st.session_state['metrics']
+                st.metric("Mean Absolute Error (MAE)",
+                          f"${metrics['MAE']:,.0f}")
+                st.metric("R-squared (R²)", f"{metrics['R2 Score']:.3f}")
+
+        with col2:
+            # UI IMPROVEMENT: Container for showing the chosen model.
+            with st.container(border=True):
+                st.subheader("🤖 Model Used")
+                st.caption(
+                    "This was the algorithm selected for the training process.")
+                st.info(f"**Model:** {selected_model}")
+                if "Forest" in selected_model or "Boosting" in selected_model:
+                    st.markdown(
+                        "This is a tree-based ensemble model, often powerful for tabular data.")
+                else:
+                    st.markdown(
+                        "This is a linear model, great for finding simple relationships in data.")
+
+        st.write("")  # Adds vertical space
+
+        # UI IMPROVEMENT: Final container for the comparison plot.
+        with st.container(border=True):
+            st.subheader("🎯 Actual vs. Predicted Values (on Test Set)")
+            st.caption("This chart helps to visually assess the model's performance by comparing its predictions against the actual historical data it did not see during training.")
+            model = st.session_state['trained_model']
+            y_pred = model.predict(st.session_state['X_test'])
+            fig_pred = plot_predictions_vs_actuals(st.session_state['y_test'], pd.Series(
+                y_pred, index=st.session_state['y_test'].index), f"Model Predictions vs. Actuals for {selected_country_name}")
+            st.plotly_chart(fig_pred, use_container_width=True)
