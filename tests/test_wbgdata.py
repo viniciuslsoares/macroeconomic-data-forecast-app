@@ -2,7 +2,6 @@ import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 import pytest
 import pandas as pd
-import numpy as np
 from init_data import WBGData
 
 def test_get_data_raises_on_empty_inputs():

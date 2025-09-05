@@ -1,6 +1,5 @@
 import wbgapi as wb
 import pandas as pd
-import numpy as np
 
 class WBGData():
     @classmethod
