@@ -116,7 +116,6 @@ class WBGData():
 
         # Fill the missing values for each country
         for i, curr_data in enumerate(data_frames):
-            # data_frames[i] = curr_data.groupby('country', group_keys=False).apply(lambda g: g.ffill().bfill()).reset_index(drop=True)
             df = curr_data.copy()
             # separate the grouping series and the rest of the columns
             group_series = df['country']
@@ -127,7 +126,7 @@ class WBGData():
             filled = filled_others.copy()
             filled['country'] = group_series
             filled = filled[df.columns]
-            # match the original behaviour which reset the index
+            # reset the index
             data_frames[i] = filled.reset_index(drop=True)
         
         return data_frames
