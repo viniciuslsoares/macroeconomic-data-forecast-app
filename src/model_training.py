@@ -32,7 +32,7 @@ def prepare_data(df: pd.DataFrame, target_column: str, features: List[str]) -> T
     """
     if DEVELOPMENT_MODE:
         # Implementação funcional para desenvolvimento
-        df_sorted = df.sort_values(by='Year').dropna(subset=features + [target_column])
+        df_sorted = df.sort_values(by='year')
         X = df_sorted[features]
         y = df_sorted[target_column]
         return train_test_split(X, y, test_size=0.2, shuffle=False)  # Time series data shouldn't be shuffled
