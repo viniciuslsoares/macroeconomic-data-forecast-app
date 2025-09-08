@@ -87,26 +87,20 @@ def prepare_data(
     return X_train, X_test, y_train, y_test
 
 
-def train_model(X_train: pd.DataFrame, y_train: pd.Series, model_name: str) -> Any:
+def train_model(model: Any, X_train: pd.DataFrame, y_train: pd.Series) -> Any:
     """
-    Trains a specified regression model.
+    Trains (fits) a machine learning model on the training data.
 
     Args:
-        X_train (pd.DataFrame): The training features.
-        y_train (pd.Series): The training target.
-        model_name (str): The name of the model to train (must be a key in MODELS).
+        model: An unfitted instance of a scikit-learn model.
+        X_train: The feature data for training.
+        y_train: The target data for training.
 
     Returns:
-        Any: The trained scikit-learn model object.
+        The trained (fitted) model object.
     """
-    if DEVELOPMENT_MODE:
-        # Implementação funcional para desenvolvimento
-        model = MODELS[model_name]()
-        model.fit(X_train, y_train)
-        return model
-    else:
-        # Código original comentado
-        pass
+    model.fit(X_train, y_train)
+    return model
 
 
 def evaluate_model(model: Any, X_test: pd.DataFrame, y_test: pd.Series) -> Dict[str, float]:
