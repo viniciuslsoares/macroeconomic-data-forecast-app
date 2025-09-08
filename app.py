@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 from src.data_processing import fetch_world_bank_data
-from src.model_training import prepare_data, train_model, evaluate_model, make_prediction, MODELS
+from src.model_training import select_model, prepare_data, train_model, evaluate_model, make_prediction, MODELS
 from src.visualization import plot_indicator_trend, plot_predictions_vs_actuals
 
 # --- 1. Page Configuration ---
@@ -61,24 +61,43 @@ with st.sidebar:
     # The button click triggers the training and saves results to session_state
     if st.button("Train Model & Predict", type="primary", use_container_width=True):
         with st.spinner("Training model... Please wait."):
+
+            # Map user-friendly names from the UI to the internal names expected by `select_model`
+            MODEL_NAME_MAP = {
+                "Linear Regression": "LinearRegression",
+                "Random Forest": "RandomForestRegressor",
+                "Gradient Boosting": "GradientBoostingRegressor",
+            }
+            
             country_data = main_data[selected_country_index].copy()
-            FEATURES = list(country_data.columns)
-            FEATURES.remove(TARGET_COLUMN)
-            FEATURES.remove('country')
+            
+            # The new `prepare_data` expects a DataFrame with only features and target.
+            if 'country' in country_data.columns:
+                country_data_for_training = country_data.drop(columns=['country'])
+            else:
+                country_data_for_training = country_data
+
+            # Call the new `prepare_data` function which has a different signature.
             X_train, X_test, y_train, y_test = prepare_data(
-                country_data, TARGET_COLUMN, FEATURES)
+                country_data_for_training, TARGET_COLUMN)
             st.session_state['X_test'], st.session_state['y_test'] = X_test, y_test
 
-            model = train_model(X_train, y_train, selected_model)
+            internal_model_name = MODEL_NAME_MAP[selected_model]
+            unfitted_model = select_model(internal_model_name)
+            model = train_model(unfitted_model, X_train, y_train)
             st.session_state['trained_model'] = model
 
             metrics = evaluate_model(model, X_test, y_test)
             st.session_state['metrics'] = metrics
 
+            features_for_prediction = X_train.columns
             last_known_features = country_data.sort_values(
-                by='year').iloc[[-1]][FEATURES]
+                by='year').iloc[[-1]][features_for_prediction]
+            
             prediction = make_prediction(model, last_known_features)
-            st.session_state['prediction'] = prediction
+            st.session_state['prediction'] = prediction[0]
+            
+
             st.success("Model trained successfully!")
 
 
@@ -150,9 +169,10 @@ with tab2:
                 st.caption(
                     "These metrics evaluate the model's accuracy on the unseen test dataset.")
                 metrics = st.session_state['metrics']
+                # UPDATED: Keys are now lowercase as returned by the new function
                 st.metric("Mean Absolute Error (MAE)",
-                          f"${metrics['MAE']:,.0f}")
-                st.metric("R-squared (R²)", f"{metrics['R2 Score']:.3f}")
+                          f"${metrics['mae']:,.0f}")
+                st.metric("R-squared (R²)", f"{metrics['r2_score']:.3f}")
 
         with col2:
             # UI IMPROVEMENT: Container for showing the chosen model.
@@ -179,3 +199,4 @@ with tab2:
             fig_pred = plot_predictions_vs_actuals(st.session_state['y_test'], pd.Series(
                 y_pred, index=st.session_state['y_test'].index), f"Model Predictions vs. Actuals for {selected_country_name}")
             st.plotly_chart(fig_pred, use_container_width=True)
+
