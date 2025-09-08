@@ -1,109 +1,143 @@
 import pandas as pd
 import numpy as np
+from typing import Tuple, Dict, Any, Literal, List
+
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from typing import Dict, Any, Tuple, List
 
 # Modo de desenvolvimento: usar implementações funcionais simples
 DEVELOPMENT_MODE = True
 
-# A dictionary to map model names to their classes
+# # A dictionary to map model names to their classes
 MODELS = {
     "Linear Regression": LinearRegression,
     "Random Forest": RandomForestRegressor,
     "Gradient Boosting": GradientBoostingRegressor,
 }
 
-
-def prepare_data(df: pd.DataFrame, target_column: str, features: List[str]) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
+def select_model(model_name) -> Any: 
     """
-    Splits the data into training and testing sets.
+    Selects and instantiates a scikit-learn regression model based on its name.
+
+    This function acts as a factory, providing a centralized point for model selection.
+    This design makes it easy to add new models in the future without changing
+    the training or evaluation logic.
 
     Args:
-        df (pd.DataFrame): The preprocessed DataFrame for a single country.
-        target_column (str): The name of the column to be predicted.
-        features (List[str]): List of feature column names.
+        model_name: The name of the model to select. Must be one of the
+                    predefined choices in the ModelChoice type.
 
     Returns:
-        Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]: A tuple containing
-        X_train, X_test, y_train, y_test.
+        An unfitted instance of the selected scikit-learn regressor.
+
+    Raises:
+        ValueError: If the model_name is not one of the supported models.
     """
-    if DEVELOPMENT_MODE:
-        # Implementação funcional para desenvolvimento
-        df_sorted = df.sort_values(by='year')
-        X = df_sorted[features]
-        y = df_sorted[target_column]
-        return train_test_split(X, y, test_size=0.2, shuffle=False)  # Time series data shouldn't be shuffled
-    else:
-        # Código original comentado
-        pass
+    models = {
+        'LinearRegression': LinearRegression(),
+        'RandomForestRegressor': RandomForestRegressor(random_state=42),
+        'GradientBoostingRegressor': GradientBoostingRegressor(random_state=42)
+    }
+    
+    model = models.get(model_name)
+    if model is None:
+        raise ValueError(f"Invalid model name: {model_name}. "
+                         f"Choose from {list(models.keys())}")
+    return model
 
 
-def train_model(X_train: pd.DataFrame, y_train: pd.Series, model_name: str) -> Any:
+def prepare_data(
+    df: pd.DataFrame, 
+    target_column: str, 
+    test_size: float = 0.2, 
+    random_state: int = 42
+) -> Tuple:
     """
-    Trains a specified regression model.
+    Prepares the dataset for model training by separating features and target,
+    and splitting them into training and testing sets.
 
     Args:
-        X_train (pd.DataFrame): The training features.
-        y_train (pd.Series): The training target.
-        model_name (str): The name of the model to train (must be a key in MODELS).
+        df: The preprocessed time-series dataset.
+        target_column: The name of the column to be used as the target variable (y).
+        test_size: The proportion of the dataset to allocate to the test set.
+        random_state: A seed for the random number generator to ensure reproducibility.
 
     Returns:
-        Any: The trained scikit-learn model object.
+        A tuple containing four elements:
+        - X_train: Features for the training set.
+        - X_test: Features for the testing set.
+        - y_train: Target variable for the training set.
+        - y_test: Target variable for the testing set.
     """
-    if DEVELOPMENT_MODE:
-        # Implementação funcional para desenvolvimento
-        model = MODELS[model_name]()
-        model.fit(X_train, y_train)
-        return model
-    else:
-        # Código original comentado
-        pass
+    if target_column not in df.columns:
+        raise ValueError(f"Target column '{target_column}' not found in DataFrame.")
+
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size, random_state=random_state
+    )
+
+    return X_train, X_test, y_train, y_test
+
+
+def train_model(model: Any, X_train: pd.DataFrame, y_train: pd.Series) -> Any:
+    """
+    Trains (fits) a machine learning model on the training data.
+
+    Args:
+        model: An unfitted instance of a scikit-learn model.
+        X_train: The feature data for training.
+        y_train: The target data for training.
+
+    Returns:
+        The trained (fitted) model object.
+    """
+    model.fit(X_train, y_train)
+    return model
 
 
 def evaluate_model(model: Any, X_test: pd.DataFrame, y_test: pd.Series) -> Dict[str, float]:
     """
-    Evaluates the model and returns performance metrics.
+    Evaluates the performance of a trained model on the unseen test set.
+
+    Calculates Mean Absolute Error (MAE), Mean Squared Error (MSE), and R-squared (R^2).
 
     Args:
-        model (Any): The trained model object.
-        X_test (pd.DataFrame): The testing features.
-        y_test (pd.Series): The testing target.
+        model: A trained scikit-learn model.
+        X_test: The feature data for testing.
+        y_test: The true target data for testing.
 
     Returns:
-        Dict[str, float]: A dictionary containing MAE, MSE, and R-squared score.
+        A dictionary containing the calculated performance metrics.
     """
-    if DEVELOPMENT_MODE:
-        # Implementação funcional para desenvolvimento
-        y_pred = model.predict(X_test)
-        metrics = {
-            "MAE": mean_absolute_error(y_test, y_pred),
-            "MSE": mean_squared_error(y_test, y_pred),
-            "R2 Score": r2_score(y_test, y_pred)
-        }
-        return metrics
-    else:
-        # Código original comentado
-        pass
+    y_pred = model.predict(X_test)
+
+    mae = mean_absolute_error(y_test, y_pred)
+    mse = mean_squared_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
+
+    metrics = {
+        'mae': mae,
+        'mse': mse,
+        'r2_score': r2
+    }
+    return metrics
 
 
-def make_prediction(model: Any, last_known_features: pd.DataFrame) -> float:
+def make_prediction(model: Any, X_new: pd.DataFrame) -> np.ndarray:
     """
-    Makes a prediction for the next year based on the last known features.
+    Generates a prediction for new, unseen feature data.
 
     Args:
-        model (Any): The trained model object.
-        last_known_features (pd.DataFrame): A DataFrame with a single row containing
-                                            the latest values for the features.
+        model: A trained scikit-learn model.
+        X_new: A DataFrame containing the feature values for which to predict.
+               This should have the same columns as the training data.
 
     Returns:
-        float: The predicted value for the target variable.
+        A numpy array containing the predictions.
     """
-    if DEVELOPMENT_MODE:
-        # Implementação funcional para desenvolvimento
-        return model.predict(last_known_features)[0]
-    else:
-        # Código original comentado
-        pass
+    return model.predict(X_new)
