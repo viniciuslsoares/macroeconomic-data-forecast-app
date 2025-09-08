@@ -171,7 +171,7 @@ with tab2:
             st.caption("This chart helps to visually assess the model's performance by comparing its predictions against the actual historical data it did not see during training.")
             model = st.session_state['trained_model']
             y_pred = model.predict(st.session_state['X_test'])
-            fig_pred = plot_predictions_vs_actuals(st.session_state['y_test'], pd.Series(
+            fig_pred = plot_predictions_vs_actuals(st.session_state['X_test'], st.session_state['y_test'], pd.Series(
                 y_pred, index=st.session_state['y_test'].index), f"Model Predictions vs. Actuals for {selected_country_name}", st.session_state['selected_target_column'])
             st.plotly_chart(fig_pred, use_container_width=True)
 

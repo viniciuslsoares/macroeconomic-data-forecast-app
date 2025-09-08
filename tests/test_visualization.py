@@ -14,9 +14,10 @@ def test_plot_predictions_vs_actuals_returns_figure():
     """
     Tests if plot_predictions_vs_actuals returns a Plotly Figure object.
     """
+    X_test = pd.DataFrame({'year': [2020, 2021, 2022]})
     y_test = pd.Series([100, 110, 120])
     y_pred = pd.Series([105, 108, 122])
-    fig = plot_predictions_vs_actuals(y_test, y_pred, 'Test Pred Plot', 'GDP')
+    fig = plot_predictions_vs_actuals(X_test, y_test, y_pred, 'Test Pred Plot', 'GDP')
     assert isinstance(fig, go.Figure)
     assert fig.layout.title.text == 'Test Pred Plot'
     assert fig.layout.yaxis.title.text == 'GDP'
