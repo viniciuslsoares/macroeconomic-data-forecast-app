@@ -2,7 +2,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Modo de desenvolvimento: usar implementações funcionais simples
 DEVELOPMENT_MODE = True
 
 

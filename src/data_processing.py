@@ -35,15 +35,14 @@ def fetch_world_bank_data(
             for year in years:
                 row = {'economy': country, 'Year': year}
                 
-                # Gerar dados realistas baseados no país
-                if country == 'BRA':  # Brasil
+                if country == 'BRA':
                     row['GDP (current US$)'] = 1.8e12 + (year - 2000) * 5e10 + np.random.normal(0, 1e11)
                     row['Population, total'] = 200e6 + (year - 2000) * 1.5e6 + np.random.normal(0, 1e6)
                     row['CO2 emissions (kt)'] = 400000 + (year - 2000) * 5000 + np.random.normal(0, 20000)
                     row['Life expectancy at birth, total (years)'] = 70 + (year - 2000) * 0.2 + np.random.normal(0, 0.5)
                     row['Individuals using the Internet (% of population)'] = min(95, 10 + (year - 2000) * 3.5 + np.random.normal(0, 2))
                 
-                elif country == 'CAN':  # Canadá
+                elif country == 'CAN':
                     row['GDP (current US$)'] = 1.2e12 + (year - 2000) * 3e10 + np.random.normal(0, 5e10)
                     row['Population, total'] = 31e6 + (year - 2000) * 0.8e6 + np.random.normal(0, 0.5e6)
                     row['CO2 emissions (kt)'] = 550000 + (year - 2000) * -2000 + np.random.normal(0, 15000)
@@ -51,7 +50,7 @@ def fetch_world_bank_data(
                     row['Individuals using the Internet (% of population)'] = min(98, 50 + (year - 2000) * 2 + np.random.normal(0, 1))
                 
                 # Adicionar alguns valores NaN ocasionais para testar o preprocessing
-                if np.random.random() < 0.05:  # 5% chance de NaN
+                if np.random.random() < 0.05:
                     indicator_name = np.random.choice(list(indicators.values()))
                     row[indicator_name] = np.nan
                 

@@ -7,10 +7,8 @@ from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# Modo de desenvolvimento: usar implementações funcionais simples
 DEVELOPMENT_MODE = True
 
-# # A dictionary to map model names to their classes
 MODELS = {
     "Linear Regression": LinearRegression,
     "Random Forest": RandomForestRegressor,

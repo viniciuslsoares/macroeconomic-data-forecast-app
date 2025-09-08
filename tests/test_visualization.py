@@ -2,7 +2,6 @@ import pandas as pd
 import plotly.graph_objects as go
 from src.visualization import plot_indicator_trend, plot_predictions_vs_actuals
 
-
 def test_plot_indicator_trend_returns_figure():
     """
     Tests if plot_indicator_trend returns a Plotly Figure object.
@@ -10,7 +9,6 @@ def test_plot_indicator_trend_returns_figure():
     df = pd.DataFrame({'year': [2020, 2021], 'GDP': [100, 110]})
     fig = plot_indicator_trend(df, 'GDP', 'Test Title')
     assert isinstance(fig, go.Figure)
-
 
 def test_plot_predictions_vs_actuals_returns_figure():
     """
