@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 from src.data_processing import fetch_world_bank_data
 from src.model_training import select_model, prepare_data, train_model, evaluate_model, make_prediction, MODELS
 from src.visualization import plot_indicator_trend, plot_predictions_vs_actuals
@@ -183,10 +184,51 @@ with tab2:
 
         with st.container(border=True):
             st.subheader("🎯 Actual vs. Predicted Values (on Test Set)")
-            st.caption("This chart helps to visually assess the model's performance by comparing its predictions against the actual historical data it did not see during training.")
+            st.caption("This chart helps to visually assess the model's performance by comparing its predictions against the actual historical data it did not see during training, and includes a 5-year forecast.")
             model = st.session_state['trained_model']
-            y_pred = model.predict(st.session_state['X_test'])
-            fig_pred = plot_predictions_vs_actuals(st.session_state['X_test'], st.session_state['y_test'], pd.Series(
-                y_pred, index=st.session_state['y_test'].index), f"Model Predictions vs. Actuals for {selected_country_name}", st.session_state['selected_target_column'])
+            X_test_df = st.session_state['X_test']
+            y_test_series = st.session_state['y_test']
+            y_pred_test = model.predict(X_test_df)
+
+            # Get the last year from the training data (which is END_YEAR)
+            last_training_year = END_YEAR
+
+            # Generate future years for prediction
+            future_years = pd.DataFrame({'year': range(last_training_year + 1, last_training_year + 6)})
+
+            # For other features, use the last known values from X_test_df
+            # This assumes other features are not time-dependent or their last values are good enough for future prediction
+            other_features = X_test_df.drop(columns=['year'], errors='ignore').columns
+            for feature in other_features:
+                # Use the last known value for each other feature
+                future_years[feature] = X_test_df[feature].iloc[-1]
+
+            # Make predictions for future years
+            y_pred_future = model.predict(future_years)
+
+            # Combine X_test and future_years for plotting
+            combined_X = pd.concat([X_test_df, future_years], ignore_index=True)
+
+            # Combine y_pred_test and y_pred_future for plotting
+            combined_y_pred = pd.Series(
+                np.concatenate([y_pred_test, y_pred_future]),
+                index=combined_X.index # Ensure index matches for plotting
+            )
+
+            # For actuals, we only have data up to last_training_year.
+            # For future years, actuals will be NaN or not plotted.
+            # We need to create a combined y_actual series that includes NaNs for future years.
+            combined_y_actual = pd.Series(
+                np.concatenate([y_test_series.values, np.full(len(future_years), np.nan)]),
+                index=combined_X.index
+            )
+
+            fig_pred = plot_predictions_vs_actuals(
+                combined_X,
+                combined_y_actual,
+                combined_y_pred,
+                f"Model Predictions vs. Actuals for {selected_country_name} (with 5-year forecast)",
+                st.session_state['selected_target_column']
+            )
             st.plotly_chart(fig_pred, use_container_width=True)
 
