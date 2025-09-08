@@ -1,47 +1,150 @@
-# File: tests/test_model_training.py
+import pytest
 import pandas as pd
-from sklearn.base import is_regressor
-from src.model_training import prepare_data, train_model, evaluate_model
+import numpy as np
 
+from sklearn.base import is_regressor, is_classifier
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 
-def test_prepare_data_split_no_shuffle():
-    """
-    Tests if data is split correctly for time series (no shuffling).
-    """
-    # TODO: Create a sample time-series DataFrame.
-    # df = pd.DataFrame({'Year': range(2000, 2020), 'Feature': range(20), 'Target': range(20, 40)})
-    # Call prepare_data.
-    # _, X_test, _, y_test = prepare_data(df, 'Target', ['Year', 'Feature'])
-    # Assert that the test set comes after the training set.
-    # For example, assert y_test.index.min() > y_train.index.max()
-    pass
+# Import the functions to be tested from the src directory
+from src.model_training import (
+    select_model,
+    prepare_data,
+    train_model,
+    evaluate_model,
+    make_prediction
+)
 
+@pytest.fixture
+def sample_data() -> pd.DataFrame:
+    """
+    Provides a consistent, small sample DataFrame for use in tests.
+    This fixture ensures that all tests run against the same baseline data,
+    making them reliable and easy to maintain.
+    """
+    data = {
+        'feature1': np.arange(10),
+        'feature2': np.arange(10, 20),
+        'target': np.arange(20, 30) * 1.5 + np.random.rand(10)
+    }
+    return pd.DataFrame(data)
 
-def test_train_model_returns_fitted_model():
+def test_prepare_data(sample_data):
     """
-    Tests if train_model returns a fitted regressor model.
+    Tests the prepare_data function to ensure it splits data correctly.
+    Verifies the types, shapes, and ratio of the output splits.
     """
-    # TODO: Create dummy training data (X_train, y_train).
-    # Call train_model with a model name like "Linear Regression".
-    # model = train_model(X_train, y_train, "Linear Regression")
-    # Assert that the returned object is a regressor.
-    # from sklearn.utils.validation import check_is_fitted
-    # assert is_regressor(model)
-    # check_is_fitted(model) # This will raise an error if the model is not fitted.
-    pass
+    X_train, X_test, y_train, y_test = prepare_data(sample_data, target_column='target')
 
+    # 1. Check if the function returns four objects
+    assert X_train is not None
+    assert X_test is not None
+    assert y_train is not None
+    assert y_test is not None
 
-def test_evaluate_model_returns_correct_metrics():
+    # 2. Check the types of the returned objects
+    assert isinstance(X_train, pd.DataFrame)
+    assert isinstance(X_test, pd.DataFrame)
+    assert isinstance(y_train, pd.Series)
+    assert isinstance(y_test, pd.Series)
+
+    # 3. Check if the split ratio is approximately 80/20
+    total_rows = len(sample_data)
+    assert len(X_train) == pytest.approx(total_rows * 0.8, abs=1)
+    assert len(X_test) == pytest.approx(total_rows * 0.2, abs=1)
+
+    # 4. Check if the number of rows is consistent
+    assert len(X_train) + len(X_test) == total_rows
+    assert len(y_train) + len(y_test) == total_rows
+
+@pytest.mark.parametrize("model_name",)
+def test_select_model(model_name):
     """
-    Tests if the evaluation function returns a dictionary with the correct keys and float values.
+    Tests the select_model function for all supported model names.
+    Ensures it returns a valid, unfitted scikit-learn regressor object.
     """
-    # TODO: Create a mock model and dummy test data (X_test, y_test).
-    # class MockModel:
-    #     def predict(self, X):
-    #         return X.iloc[:, 0] + 1
-    # Call evaluate_model.
-    # metrics = evaluate_model(MockModel(), X_test, y_test)
-    # Assert that the returned dictionary has the keys 'MAE', 'MSE', 'R2 Score'.
-    # Assert that all values in the dictionary are floats.
-    # assert all(isinstance(v, float) for v in metrics.values())
-    pass
+    model = select_model(model_name)
+    assert model is not None
+    # Check if the returned object is a regressor and not a classifier
+    assert is_regressor(model)
+    assert not is_classifier(model)
+
+def test_select_model_invalid():
+    """
+    Tests that select_model raises a ValueError for an unsupported model name.
+    """
+    with pytest.raises(ValueError):
+        select_model("InvalidModelName")
+
+@pytest.mark.parametrize("model_name",)
+def test_train_and_predict_flow(sample_data, model_name):
+    """
+    Tests the end-to-end training and prediction flow for each model type.
+    This integration test verifies that the functions work together as expected.
+    """
+    # 1. Prepare data
+    X_train, X_test, y_train, y_test = prepare_data(sample_data, 'target')
+    
+    # 2. Select model
+    model_instance = select_model(model_name)
+    
+    # 3. Train model
+    trained_model = train_model(model_instance, X_train, y_train)
+    
+    # Assert that the model is now "fitted"
+    # We check for attributes that only exist after fitting
+    if hasattr(trained_model, 'coef_') or hasattr(trained_model, 'feature_importances_'):
+        assert True
+    else:
+        # A more generic check if specific attributes are not present
+        from sklearn.exceptions import NotFittedError
+        try:
+            trained_model.predict(X_test)
+        except NotFittedError:
+            pytest.fail("Model should be fitted after train_model call.")
+
+    # 4. Make prediction
+    prediction = make_prediction(trained_model, X_test)
+    
+    # Assert that the prediction output has the correct shape
+    assert isinstance(prediction, np.ndarray)
+    assert len(prediction) == len(X_test)
+
+def test_evaluate_model():
+    """
+    Tests the evaluate_model function with fixed inputs.
+    This test verifies the correctness of the metric calculations by comparing
+    the function's output to pre-calculated, known values.
+    """
+    # Mock a simple model with a predict method
+    class MockModel:
+        def predict(self, X):
+            # Simple prediction: returns the first feature doubled
+            return X.iloc[:, 0] * 2
+
+    model = MockModel()
+    X_test = pd.DataFrame({
+        'feature1': [1.0, 2.0, 3.0, 4.0],
+        'feature2': [10.0, 20.0, 30.0, 40.0] 
+    })
+    y_test = pd.Series([2.5, 3.5, 6.5, 7.5]) # True values
+    # Predicted values will be 
+
+    metrics = evaluate_model(model, X_test, y_test)
+
+    # Pre-calculated expected values
+    # y_true = [2.5, 3.5, 6.5, 7.5]
+    # y_pred = 
+    # errors = [-0.5, 0.5, -0.5, 0.5]
+    # abs_errors = [0.5, 0.5, 0.5, 0.5] -> MAE = 0.5
+    # sq_errors = [0.25, 0.25, 0.25, 0.25] -> MSE = 0.25
+    # R2 = 1 - (sum_sq_err / sum_sq_total) = 1 - (1.0 / 5.25) = 0.8095...
+
+    assert isinstance(metrics, dict)
+    assert 'mae' in metrics
+    assert 'mse' in metrics
+    assert 'r2_score' in metrics
+
+    assert metrics['mae'] == pytest.approx(0.5)
+    assert metrics['mse'] == pytest.approx(0.25)
+    assert metrics['r2_score'] == pytest.approx(0.809523, abs=1e-5)
