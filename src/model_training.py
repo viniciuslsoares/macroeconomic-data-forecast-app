@@ -131,21 +131,16 @@ def evaluate_model(model: Any, X_test: pd.DataFrame, y_test: pd.Series) -> Dict[
     return metrics
 
 
-def make_prediction(model: Any, last_known_features: pd.DataFrame) -> float:
+def make_prediction(model: Any, X_new: pd.DataFrame) -> np.ndarray:
     """
-    Makes a prediction for the next year based on the last known features.
+    Generates a prediction for new, unseen feature data.
 
     Args:
-        model (Any): The trained model object.
-        last_known_features (pd.DataFrame): A DataFrame with a single row containing
-                                            the latest values for the features.
+        model: A trained scikit-learn model.
+        X_new: A DataFrame containing the feature values for which to predict.
+               This should have the same columns as the training data.
 
     Returns:
-        float: The predicted value for the target variable.
+        A numpy array containing the predictions.
     """
-    if DEVELOPMENT_MODE:
-        # Implementação funcional para desenvolvimento
-        return model.predict(last_known_features)[0]
-    else:
-        # Código original comentado
-        pass
+    return model.predict(X_new)
