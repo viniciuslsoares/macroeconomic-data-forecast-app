@@ -17,10 +17,7 @@ MODELS = {
     "Gradient Boosting": GradientBoostingRegressor,
 }
 
-# Define a type alias for the supported model names for better type checking
-ModelChoice = Literal
-
-def select_model(model_name: ModelChoice) -> Any: 
+def select_model(model_name) -> Any: 
     """
     Selects and instantiates a scikit-learn regression model based on its name.
 
