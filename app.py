@@ -80,11 +80,18 @@ with st.sidebar:
             metrics = evaluate_model(model, X_test, y_test)
             st.session_state['metrics'] = metrics
 
-            features_for_prediction = X_train.columns
-            last_known_features = country_data.sort_values(
-                by='year').iloc[[-1]][features_for_prediction]
+            # Prepare features for the single next-year prediction (END_YEAR + 1)
+            next_year_features = pd.DataFrame({'year': [END_YEAR + 1]})
             
-            prediction = make_prediction(model, last_known_features)
+            # Determine the source for other features: X_test_df if not empty, else X_train
+            features_source_df = X_test if not X_test.empty else X_train
+
+            # Populate other features using the last known values from the chosen source
+            other_features = features_source_df.drop(columns=['year'], errors='ignore').columns
+            for feature in other_features:
+                next_year_features[feature] = features_source_df[feature].iloc[-1]
+
+            prediction = make_prediction(model, next_year_features)
             st.session_state['prediction'] = prediction[0]
             st.session_state['selected_target_column'] = selected_target_column
             
