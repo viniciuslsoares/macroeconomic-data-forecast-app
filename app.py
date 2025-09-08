@@ -128,12 +128,21 @@ with tab2:
         st.image(
             "https://media1.tenor.com/m/y2uA8hd_3tEAAAAC/what-are-you-waiting-for-do-it.gif", width=300)
     else:
+        ECONOMIC_INDICATORS = {'GDP (current US$)'}
+        is_economic = st.session_state['selected_target_column'] in ECONOMIC_INDICATORS
+
         with st.container(border=True):
             st.subheader(f"🔮 Prediction for {st.session_state['selected_target_column']} in {END_YEAR + 1}")
             pred_value = st.session_state['prediction']
+            
+            if is_economic:
+                formatted_pred = f"${pred_value:,.0f}"
+            else:
+                formatted_pred = f"{pred_value:,.0f}"
+
             st.metric(
                 label=f"Predicted {st.session_state['selected_target_column']}",
-                value=f"${pred_value:,.0f}",
+                value=formatted_pred,
                 help="This is the model's prediction for the next year based on the latest available data."
             )
 
@@ -147,8 +156,14 @@ with tab2:
                 st.caption(
                     "These metrics evaluate the model's accuracy on the unseen test dataset.")
                 metrics = st.session_state['metrics']
+
+                if is_economic:
+                    formatted_mae = f"${metrics['mae']:,.0f}"
+                else:
+                    formatted_mae = f"{metrics['mae']:,.0f}"
+
                 st.metric("Mean Absolute Error (MAE)",
-                          f"${metrics['mae']:,.0f}")
+                          formatted_mae)
                 st.metric("R-squared (R²)", f"{metrics['r2_score']:.3f}")
 
         with col2:
