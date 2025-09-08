@@ -51,28 +51,40 @@ def select_model(model_name: ModelChoice) -> Any:
     return model
 
 
-def prepare_data(df: pd.DataFrame, target_column: str, features: List[str]) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
+def prepare_data(
+    df: pd.DataFrame, 
+    target_column: str, 
+    test_size: float = 0.2, 
+    random_state: int = 42
+) -> Tuple:
     """
-    Splits the data into training and testing sets.
+    Prepares the dataset for model training by separating features and target,
+    and splitting them into training and testing sets.
 
     Args:
-        df (pd.DataFrame): The preprocessed DataFrame for a single country.
-        target_column (str): The name of the column to be predicted.
-        features (List[str]): List of feature column names.
+        df: The preprocessed time-series dataset.
+        target_column: The name of the column to be used as the target variable (y).
+        test_size: The proportion of the dataset to allocate to the test set.
+        random_state: A seed for the random number generator to ensure reproducibility.
 
     Returns:
-        Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]: A tuple containing
-        X_train, X_test, y_train, y_test.
+        A tuple containing four elements:
+        - X_train: Features for the training set.
+        - X_test: Features for the testing set.
+        - y_train: Target variable for the training set.
+        - y_test: Target variable for the testing set.
     """
-    if DEVELOPMENT_MODE:
-        # Implementação funcional para desenvolvimento
-        df_sorted = df.sort_values(by='year')
-        X = df_sorted[features]
-        y = df_sorted[target_column]
-        return train_test_split(X, y, test_size=0.2, shuffle=False)  # Time series data shouldn't be shuffled
-    else:
-        # Código original comentado
-        pass
+    if target_column not in df.columns:
+        raise ValueError(f"Target column '{target_column}' not found in DataFrame.")
+
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size, random_state=random_state
+    )
+
+    return X_train, X_test, y_train, y_test
 
 
 def train_model(X_train: pd.DataFrame, y_train: pd.Series, model_name: str) -> Any:
