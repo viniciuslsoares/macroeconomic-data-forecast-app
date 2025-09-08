@@ -1,20 +1,54 @@
 import pandas as pd
 import numpy as np
+from typing import Tuple, Dict, Any, Literal, List
+
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from typing import Dict, Any, Tuple, List
 
 # Modo de desenvolvimento: usar implementações funcionais simples
 DEVELOPMENT_MODE = True
 
-# A dictionary to map model names to their classes
+# # A dictionary to map model names to their classes
 MODELS = {
     "Linear Regression": LinearRegression,
     "Random Forest": RandomForestRegressor,
     "Gradient Boosting": GradientBoostingRegressor,
 }
+
+# Define a type alias for the supported model names for better type checking
+ModelChoice = Literal
+
+def select_model(model_name: ModelChoice) -> Any: 
+    """
+    Selects and instantiates a scikit-learn regression model based on its name.
+
+    This function acts as a factory, providing a centralized point for model selection.
+    This design makes it easy to add new models in the future without changing
+    the training or evaluation logic.
+
+    Args:
+        model_name: The name of the model to select. Must be one of the
+                    predefined choices in the ModelChoice type.
+
+    Returns:
+        An unfitted instance of the selected scikit-learn regressor.
+
+    Raises:
+        ValueError: If the model_name is not one of the supported models.
+    """
+    models = {
+        'LinearRegression': LinearRegression(),
+        'RandomForestRegressor': RandomForestRegressor(random_state=42),
+        'GradientBoostingRegressor': GradientBoostingRegressor(random_state=42)
+    }
+    
+    model = models.get(model_name)
+    if model is None:
+        raise ValueError(f"Invalid model name: {model_name}. "
+                         f"Choose from {list(models.keys())}")
+    return model
 
 
 def prepare_data(df: pd.DataFrame, target_column: str, features: List[str]) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
