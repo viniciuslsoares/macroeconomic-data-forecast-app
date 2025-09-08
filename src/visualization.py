@@ -20,7 +20,7 @@ def plot_indicator_trend(df: pd.DataFrame, indicator: str, title: str) -> go.Fig
     """
     if DEVELOPMENT_MODE:
         # Implementação funcional para desenvolvimento
-        fig = px.line(df, x='Year', y=indicator, title=title, markers=True)
+        fig = px.line(df, x='year', y=indicator, title=title, markers=True)
         fig.update_layout(
             xaxis_title="Year",
             yaxis_title=indicator,

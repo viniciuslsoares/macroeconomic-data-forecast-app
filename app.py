@@ -1,7 +1,7 @@
 # File: app.py
 import streamlit as st
 import pandas as pd
-from src.data_processing import fetch_world_bank_data, preprocess_data
+from src.data_processing import fetch_world_bank_data
 from src.model_training import prepare_data, train_model, evaluate_model, make_prediction, MODELS
 from src.visualization import plot_indicator_trend, plot_predictions_vs_actuals
 
@@ -26,10 +26,6 @@ INDICATORS = {
 START_YEAR = 2000
 END_YEAR = 2023
 TARGET_COLUMN = 'GDP (current US$)'
-FEATURES = list(INDICATORS.values())
-if TARGET_COLUMN in FEATURES:
-    FEATURES.remove(TARGET_COLUMN)
-FEATURES.append('Year')
 
 
 # --- 3. Data Loading ---
@@ -37,10 +33,9 @@ FEATURES.append('Year')
 def load_data():
     """Fetches and preprocesses data from the World Bank. Caches the result."""
     with st.spinner("Fetching and preprocessing data from the World Bank API... This may take a moment."):
-        raw_data = fetch_world_bank_data(
-            list(COUNTRIES.values()), INDICATORS, START_YEAR, END_YEAR)
-        processed_data = preprocess_data(raw_data)
-    return processed_data
+        data = fetch_world_bank_data(
+            list(COUNTRIES.values()), START_YEAR, END_YEAR, INDICATORS)
+    return data
 
 
 # --- Load data once and cache it ---
@@ -54,9 +49,10 @@ with st.sidebar:
     st.markdown(
         "Select the country and the machine learning model to be used for the prediction.")
 
+    country_names = list(COUNTRIES.keys())
     selected_country_name = st.selectbox(
-        "Select Country", list(COUNTRIES.keys()))
-    selected_country_code = COUNTRIES[selected_country_name]
+        "Select Country", country_names)
+    selected_country_index = country_names.index(selected_country_name)
 
     selected_model = st.selectbox("Select Model", list(MODELS.keys()))
 
@@ -65,9 +61,10 @@ with st.sidebar:
     # The button click triggers the training and saves results to session_state
     if st.button("Train Model & Predict", type="primary", use_container_width=True):
         with st.spinner("Training model... Please wait."):
-            country_data = main_data[main_data['economy']
-                                     == selected_country_code].copy()
-
+            country_data = main_data[selected_country_index].copy()
+            FEATURES = list(country_data.columns)
+            FEATURES.remove(TARGET_COLUMN)
+            FEATURES.remove('country')
             X_train, X_test, y_train, y_test = prepare_data(
                 country_data, TARGET_COLUMN, FEATURES)
             st.session_state['X_test'], st.session_state['y_test'] = X_test, y_test
@@ -79,7 +76,7 @@ with st.sidebar:
             st.session_state['metrics'] = metrics
 
             last_known_features = country_data.sort_values(
-                by='Year').iloc[[-1]][FEATURES]
+                by='year').iloc[[-1]][FEATURES]
             prediction = make_prediction(model, last_known_features)
             st.session_state['prediction'] = prediction
             st.success("Model trained successfully!")
@@ -102,8 +99,7 @@ with tab1:
         st.subheader("Preprocessed Data Table")
         st.caption(
             f"Displaying the last 10 years of available data for {selected_country_name}. The model will be trained on this dataset.")
-        st.dataframe(main_data[main_data['economy'] ==
-                     selected_country_code].tail(10))
+        st.dataframe(main_data[selected_country_index].tail(10))
 
     st.write("")  # Adds vertical space
 
@@ -116,8 +112,7 @@ with tab1:
             key="indicator_selector"
         )
         if indicator_to_plot:
-            country_df_viz = main_data[main_data['economy']
-                                       == selected_country_code]
+            country_df_viz = main_data[selected_country_index]
             fig_trend = plot_indicator_trend(
                 country_df_viz, indicator_to_plot, f"{indicator_to_plot} for {selected_country_name}")
             st.plotly_chart(fig_trend, use_container_width=True)

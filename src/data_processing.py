@@ -1,11 +1,15 @@
 import pandas as pd
 import numpy as np
 from typing import List
+import wbgapi as wb
 
 # Modo de desenvolvimento: usar dados fictícios para testar o frontend
-DEVELOPMENT_MODE = True
+DEVELOPMENT_MODE = False
 
-def fetch_world_bank_data(countries: List[str], indicators: dict, start_year: int, end_year: int) -> pd.DataFrame:
+def fetch_world_bank_data(
+        countries: List[str], start_year: int, end_year: int, indicators: dict = {},
+        missing_values_threshold: int = 0.3, verbose: bool = False
+    ) -> List[pd.DataFrame]:
     """
     Fetches economic data from the World Bank API for specified countries and indicators.
     
@@ -16,14 +20,16 @@ def fetch_world_bank_data(countries: List[str], indicators: dict, start_year: in
         end_year (int): The ending year for the data.
 
     Returns:
-        pd.DataFrame: A DataFrame with the fetched data, indexed by country and year.
+        list[pd.DataFrame]: A list of DataFrames. Each represents the processed fetched data for each given country.
     """
+    years = list(range(start_year, end_year + 1))
+    if len(years) == 0:
+        raise ValueError("Input must satisfy: end_year >= start_year.")
     if DEVELOPMENT_MODE:
         # Gerar dados fictícios realistas para desenvolvimento do frontend
         np.random.seed(42)  # Para resultados consistentes
         
         data = []
-        years = list(range(start_year, end_year + 1))
         
         for country in countries:
             for year in years:
@@ -54,16 +60,59 @@ def fetch_world_bank_data(countries: List[str], indicators: dict, start_year: in
         return pd.DataFrame(data)
     
     else:
-        # Código original para produção (comentado para evitar erros)
-        # import wbgapi as wb
-        # df = wb.data.DataFrame(list(indicators.keys()), countries, time=range(start_year, end_year + 1))
-        # df_processed = df.stack().unstack(level=1).rename(columns=indicators).reset_index()
-        # df_processed['Year'] = pd.to_numeric(df_processed['time'].str.replace('YR', ''))
-        # return df_processed.drop(columns=['time'])
-        pass
+        if indicators:
+            indicators = indicators
+        else:
+            indicators =  {
+                # Health
+                'SP.DYN.LE00.IN': 'life_expectancy',
+                'SP.DYN.IMRT.IN': 'infant_mortality',
+                'SH.XPD.CHEX.GD.ZS': 'health_expenditure_pct_gdp',
+                # Economy
+                'NY.GDP.PCAP.CD': 'gdp_per_capita',
+                'SI.POV.DDAY': 'poverty_2.15_usd_pct',
+                'SI.POV.2DAY': 'poverty_3.65_usd_pct',
+                'SI.POV.GINI': 'gini_index',
+                # Education
+                'SE.XPD.TOTL.GD.ZS': 'education_expenditure_pct_gdp',
+                'SE.PRM.CMPT.ZS': 'primary_completion_rate',
+                # Infrastructure
+                'SH.STA.SMSS.ZS': 'safe_sanitation_pct',
+                'EG.ELC.ACCS.ZS': 'electricity_access_pct',
+                # Environment
+                'EN.ATM.PM25.MC.M3': 'air_pm25',
+                'EN.ATM.CO2E.PC': 'co2_per_capita',
+                'AG.LND.FRST.ZS': 'forest_area_pct',
+                # Demographics
+                'SP.POP.TOTL': 'total_population',
+                'SP.URB.GROW': 'urban_growth_pct',
+                # Security
+                'VC.IHR.PSRC.P5': 'homicide_rate'
+            }
+        if not countries:
+            raise ValueError("Countries list cannot be empty.")
+
+        # Import raw data
+        raw = wb.data.DataFrame(indicators.keys(), countries, time=years, labels=False)
+        raw.index.names = ['country', 'indicator']
+        raw = raw.reset_index()
+
+        # Ensure features are on the column
+        df = raw.sort_values(['country','indicator'])
+        df_melted = pd.melt(df, id_vars=['country', 'indicator'], var_name='year', value_name='value')
+        data = df_melted.pivot(index=['country', 'year'], columns='indicator', values='value')
+        data = data.reset_index()
+        data['year'] = data['year'].str.replace('YR', '').astype(int)
+
+        # Rename columns using the indicators dictionary for better readability
+        data = data.rename(columns=indicators)
+
+        data_frames = _handle_missing_values(data, missing_values_threshold, verbose)
+
+        return data_frames
 
 
-def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
+def _handle_missing_values(data: pd.DataFrame, threshold: float, verbose: bool = False) -> List[pd.DataFrame]:
     """
     Cleans the input DataFrame by handling missing values.
 
@@ -71,11 +120,35 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
         df (pd.DataFrame): The raw data DataFrame.
 
     Returns:
-        pd.DataFrame: The preprocessed DataFrame with missing values handled using interpolation.
+        list[pd.DataFrame]: A list of DataFrames. Each represents the processed fetched data for each given country. The final data does not contain missing values.
     """
-    # Implementação funcional para desenvolvimento
-    df_cleaned = df.groupby('economy').apply(
-        lambda group: group.interpolate(method='linear', limit_direction='forward', axis=0)
-    ).reset_index(drop=True)
+        # Remove columns with a percentage of missing values higher to the given (or default)
+        # threshold
+    data_frames = []
+    countries = data['country'].unique()
+    for country in countries:
+        curr_data = data[data['country'] == country]
+        curr_missing_percentage = curr_data.isnull().sum() / len(curr_data)
+        columns_to_drop = curr_missing_percentage[curr_missing_percentage > threshold].index
+        if verbose:
+            print(f"Columns to be removed by missing values threshold {threshold} for country {country}: {list(columns_to_drop)}")
+        curr_data = curr_data.drop(columns=columns_to_drop, errors='ignore')
+        data_frames.append(curr_data)
     
-    return df_cleaned
+
+    # Fill the missing values for each country
+    for i, curr_data in enumerate(data_frames):
+        df = curr_data.copy()
+        # separate the grouping series and the rest of the columns
+        group_series = df['country']
+        others = df.drop(columns=['country'])
+        # apply ffill/bfill to the non-grouping columns grouped by the series
+        filled_others = others.groupby(group_series, group_keys=False, sort=False).apply(lambda g: g.ffill().bfill())
+        # reattach the country column and restore original column order
+        filled = filled_others.copy()
+        filled['country'] = group_series
+        filled = filled[df.columns]
+        # reset the index
+        data_frames[i] = filled.reset_index(drop=True)
+    
+    return data_frames
