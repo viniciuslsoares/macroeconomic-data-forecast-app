@@ -135,20 +135,14 @@ def _handle_missing_values(data: pd.DataFrame, threshold: float, verbose: bool =
         curr_data = curr_data.drop(columns=columns_to_drop, errors='ignore')
         data_frames.append(curr_data)
     
-
-    # Fill the missing values for each country
     for i, curr_data in enumerate(data_frames):
         df = curr_data.copy()
-        # separate the grouping series and the rest of the columns
         group_series = df['country']
         others = df.drop(columns=['country'])
-        # apply ffill/bfill to the non-grouping columns grouped by the series
         filled_others = others.groupby(group_series, group_keys=False, sort=False).apply(lambda g: g.ffill().bfill())
-        # reattach the country column and restore original column order
         filled = filled_others.copy()
         filled['country'] = group_series
         filled = filled[df.columns]
-        # reset the index
         data_frames[i] = filled.reset_index(drop=True)
     
     return data_frames

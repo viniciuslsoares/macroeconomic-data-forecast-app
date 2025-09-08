@@ -19,13 +19,11 @@ COUNTRIES = {"Brazil": "BRA", "Canada": "CAN"}
 INDICATORS = {
     'NY.GDP.MKTP.CD': 'GDP (current US$)',
     'SP.POP.TOTL': 'Population, total',
-    'EN.ATM.CO2E.KT': 'CO2 emissions (kt)',
     'SP.DYN.LE00.IN': 'Life expectancy at birth, total (years)',
     'IT.NET.USER.ZS': 'Individuals using the Internet (% of population)'
 }
 START_YEAR = 2000
 END_YEAR = 2023
-TARGET_COLUMN = 'GDP (current US$)'
 
 
 # --- 3. Data Loading ---
@@ -56,6 +54,9 @@ with st.sidebar:
 
     selected_model = st.selectbox("Select Model", list(MODELS.keys()))
 
+    selected_target_column = st.selectbox(
+        "Select Target Column", list(INDICATORS.values()))
+
     st.markdown("---")
 
     # The button click triggers the training and saves results to session_state
@@ -79,7 +80,7 @@ with st.sidebar:
 
             # Call the new `prepare_data` function which has a different signature.
             X_train, X_test, y_train, y_test = prepare_data(
-                country_data_for_training, TARGET_COLUMN)
+                country_data_for_training, selected_target_column)
             st.session_state['X_test'], st.session_state['y_test'] = X_test, y_test
 
             internal_model_name = MODEL_NAME_MAP[selected_model]
@@ -96,6 +97,7 @@ with st.sidebar:
             
             prediction = make_prediction(model, last_known_features)
             st.session_state['prediction'] = prediction[0]
+            st.session_state['selected_target_column'] = selected_target_column
             
 
             st.success("Model trained successfully!")
@@ -149,10 +151,10 @@ with tab2:
     else:
         # UI IMPROVEMENT: A dedicated container for the main prediction result.
         with st.container(border=True):
-            st.subheader(f"🔮 GDP Prediction for {END_YEAR + 1}")
+            st.subheader(f"🔮 Prediction for {st.session_state['selected_target_column']} in {END_YEAR + 1}")
             pred_value = st.session_state['prediction']
             st.metric(
-                label=f"Predicted {TARGET_COLUMN}",
+                label=f"Predicted {st.session_state['selected_target_column']}",
                 value=f"${pred_value:,.0f}",
                 help="This is the model's prediction for the next year based on the latest available data."
             )
@@ -197,6 +199,6 @@ with tab2:
             model = st.session_state['trained_model']
             y_pred = model.predict(st.session_state['X_test'])
             fig_pred = plot_predictions_vs_actuals(st.session_state['y_test'], pd.Series(
-                y_pred, index=st.session_state['y_test'].index), f"Model Predictions vs. Actuals for {selected_country_name}")
+                y_pred, index=st.session_state['y_test'].index), f"Model Predictions vs. Actuals for {selected_country_name}", st.session_state['selected_target_column'])
             st.plotly_chart(fig_pred, use_container_width=True)
 
