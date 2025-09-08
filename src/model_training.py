@@ -105,28 +105,30 @@ def train_model(model: Any, X_train: pd.DataFrame, y_train: pd.Series) -> Any:
 
 def evaluate_model(model: Any, X_test: pd.DataFrame, y_test: pd.Series) -> Dict[str, float]:
     """
-    Evaluates the model and returns performance metrics.
+    Evaluates the performance of a trained model on the unseen test set.
+
+    Calculates Mean Absolute Error (MAE), Mean Squared Error (MSE), and R-squared (R^2).
 
     Args:
-        model (Any): The trained model object.
-        X_test (pd.DataFrame): The testing features.
-        y_test (pd.Series): The testing target.
+        model: A trained scikit-learn model.
+        X_test: The feature data for testing.
+        y_test: The true target data for testing.
 
     Returns:
-        Dict[str, float]: A dictionary containing MAE, MSE, and R-squared score.
+        A dictionary containing the calculated performance metrics.
     """
-    if DEVELOPMENT_MODE:
-        # Implementação funcional para desenvolvimento
-        y_pred = model.predict(X_test)
-        metrics = {
-            "MAE": mean_absolute_error(y_test, y_pred),
-            "MSE": mean_squared_error(y_test, y_pred),
-            "R2 Score": r2_score(y_test, y_pred)
-        }
-        return metrics
-    else:
-        # Código original comentado
-        pass
+    y_pred = model.predict(X_test)
+
+    mae = mean_absolute_error(y_test, y_pred)
+    mse = mean_squared_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
+
+    metrics = {
+        'mae': mae,
+        'mse': mse,
+        'r2_score': r2
+    }
+    return metrics
 
 
 def make_prediction(model: Any, last_known_features: pd.DataFrame) -> float:
