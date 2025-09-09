@@ -69,7 +69,11 @@ with st.sidebar:
                 country_data_for_training = country_data
 
             X_train, X_test, y_train, y_test = prepare_data(
-                country_data_for_training, selected_target_column)
+                country_data_for_training, selected_target_column
+            )
+
+            # Save all splits in session_state so they are accessible later
+            st.session_state['X_train'], st.session_state['y_train'] = X_train, y_train
             st.session_state['X_test'], st.session_state['y_test'] = X_test, y_test
 
             internal_model_name = MODEL_NAME_MAP[selected_model]
@@ -216,6 +220,12 @@ with tab2:
             # Combine X_train, X_test, and future_years for plotting
             # Ensure X_train and X_test are sorted by year before concatenation
             # (prepare_data already sorts the original df, so X_train and X_test should be sorted)
+            
+            X_train = st.session_state['X_train']
+            y_train = st.session_state['y_train']
+            X_test_df = st.session_state['X_test']
+            y_test_series = st.session_state['y_test']
+
             combined_X = pd.concat([X_train, X_test_df, future_years], ignore_index=True)
 
             # Combine y_train (actuals for training data), y_test (actuals for test data), and NaNs for future years
