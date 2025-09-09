@@ -34,7 +34,8 @@ def sample_data() -> pd.DataFrame:
     data = {
         'feature1': np.arange(10),
         'feature2': np.arange(10, 20),
-        'target': np.arange(20, 30) * 1.5 + np.random.rand(10)
+        'target': np.arange(20, 30) * 1.5 + np.random.rand(10),
+        'year': np.arange(2010, 2020) # Add a year column for time-series split
     }
     return pd.DataFrame(data)
 
@@ -59,8 +60,8 @@ def test_prepare_data(sample_data):
 
     # 3. Check if the split ratio is approximately 80/20
     total_rows = len(sample_data)
-    assert len(X_train) == pytest.approx(total_rows * 0.8, abs=1)
-    assert len(X_test) == pytest.approx(total_rows * 0.2, abs=1)
+    assert len(X_train) == total_rows - 5
+    assert len(X_test) == 5
 
     # 4. Check if the number of rows is consistent
     assert len(X_train) + len(X_test) == total_rows
