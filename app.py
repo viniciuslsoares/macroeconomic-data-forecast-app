@@ -20,7 +20,7 @@ INDICATORS = {
     'IT.NET.USER.ZS': 'Individuals using the Internet (% of population)'
 }
 START_YEAR = 2000
-END_YEAR = 2023
+END_YEAR = 2018
 
 @st.cache_data
 def load_data():
