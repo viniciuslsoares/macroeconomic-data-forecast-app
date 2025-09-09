@@ -213,20 +213,24 @@ with tab2:
             # Make predictions for future years
             y_pred_future = model.predict(future_years)
 
-            # Combine X_test and future_years for plotting
-            combined_X = pd.concat([X_test_df, future_years], ignore_index=True)
+            # Combine X_train, X_test, and future_years for plotting
+            # Ensure X_train and X_test are sorted by year before concatenation
+            # (prepare_data already sorts the original df, so X_train and X_test should be sorted)
+            combined_X = pd.concat([X_train, X_test_df, future_years], ignore_index=True)
 
-            # Combine y_pred_test and y_pred_future for plotting
-            combined_y_pred = pd.Series(
-                np.concatenate([y_pred_test, y_pred_future]),
-                index=combined_X.index # Ensure index matches for plotting
+            # Combine y_train (actuals for training data), y_test (actuals for test data), and NaNs for future years
+            combined_y_actual = pd.Series(
+                np.concatenate([y_train.values, y_test_series.values, np.full(len(future_years), np.nan)]),
+                index=combined_X.index
             )
 
-            # For actuals, we only have data up to last_training_year.
-            # For future years, actuals will be NaN or not plotted.
-            # We need to create a combined y_actual series that includes NaNs for future years.
-            combined_y_actual = pd.Series(
-                np.concatenate([y_test_series.values, np.full(len(future_years), np.nan)]),
+            # y_pred_test is already calculated based on X_test_df
+            # For y_pred_train, we need to predict on X_train
+            y_pred_train = model.predict(X_train)
+
+            # Combine y_pred_train, y_pred_test, and y_pred_future for plotting
+            combined_y_pred = pd.Series(
+                np.concatenate([y_pred_train, y_pred_test, y_pred_future]),
                 index=combined_X.index
             )
 

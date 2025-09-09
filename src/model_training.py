@@ -49,18 +49,16 @@ def select_model(model_name) -> Any:
 def prepare_data(
     df: pd.DataFrame, 
     target_column: str, 
-    test_size: float = 0.2, 
-    random_state: int = 42
+    test_years_count: int = 5, 
 ) -> Tuple:
     """
     Prepares the dataset for model training by separating features and target,
-    and splitting them into training and testing sets.
+    and splitting them into training and testing sets using a time-series split.
 
     Args:
         df: The preprocessed time-series dataset.
         target_column: The name of the column to be used as the target variable (y).
-        test_size: The proportion of the dataset to allocate to the test set.
-        random_state: A seed for the random number generator to ensure reproducibility.
+        test_years_count: The number of most recent years to allocate to the test set.
 
     Returns:
         A tuple containing four elements:
@@ -72,12 +70,20 @@ def prepare_data(
     if target_column not in df.columns:
         raise ValueError(f"Target column '{target_column}' not found in DataFrame.")
 
-    X = df.drop(columns=[target_column])
-    y = df[target_column]
+    df_sorted = df.sort_values(by='year')
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state
-    )
+    # Determine the split point
+    split_index = len(df_sorted) - test_years_count
+    if split_index < 0: # Handle cases where not enough data for test_years_count
+        split_index = 0 # Use all data for training, no test set
+
+    X = df_sorted.drop(columns=[target_column])
+    y = df_sorted[target_column]
+
+    X_train = X.iloc[:split_index]
+    X_test = X.iloc[split_index:]
+    y_train = y.iloc[:split_index]
+    y_test = y.iloc[split_index:]
 
     return X_train, X_test, y_train, y_test
 
