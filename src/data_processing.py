@@ -3,7 +3,7 @@ import numpy as np
 from typing import List
 import wbgapi as wb
 
-# Modo de desenvolvimento: usar dados fictícios para testar o frontend
+
 DEVELOPMENT_MODE = False
 
 def fetch_world_bank_data(
@@ -26,8 +26,8 @@ def fetch_world_bank_data(
     if len(years) == 0:
         raise ValueError("Input must satisfy: end_year >= start_year.")
     if DEVELOPMENT_MODE:
-        # Gerar dados fictícios realistas para desenvolvimento do frontend
-        np.random.seed(42)  # Para resultados consistentes
+        
+        
         
         data = []
         
@@ -49,7 +49,7 @@ def fetch_world_bank_data(
                     row['Life expectancy at birth, total (years)'] = 79 + (year - 2000) * 0.1 + np.random.normal(0, 0.3)
                     row['Individuals using the Internet (% of population)'] = min(98, 50 + (year - 2000) * 2 + np.random.normal(0, 1))
                 
-                # Adicionar alguns valores NaN ocasionais para testar o preprocessing
+                
                 if np.random.random() < 0.05:
                     indicator_name = np.random.choice(list(indicators.values()))
                     row[indicator_name] = np.nan

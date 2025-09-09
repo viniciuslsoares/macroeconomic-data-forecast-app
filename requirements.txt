@@ -1,6 +1,7 @@
-pandas
-scikit-learn
 streamlit
+pandas
+numpy
 wbgapi
+scikit-learn
 plotly
 pytest
