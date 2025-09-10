@@ -2,9 +2,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Modo de desenvolvimento: usar implementações funcionais simples
-DEVELOPMENT_MODE = True
-
 
 def plot_indicator_trend(df: pd.DataFrame, indicator: str, title: str) -> go.Figure:
     """
@@ -18,63 +15,60 @@ def plot_indicator_trend(df: pd.DataFrame, indicator: str, title: str) -> go.Fig
     Returns:
         go.Figure: A Plotly figure object.
     """
-    if DEVELOPMENT_MODE:
-        # Implementação funcional para desenvolvimento
-        fig = px.line(df, x='year', y=indicator, title=title, markers=True)
-        fig.update_layout(
-            xaxis_title="Year",
-            yaxis_title=indicator,
-            hovermode='x unified'
-        )
-        return fig
-    else:
-        # Código original comentado
-        pass
+    fig = px.line(df, x="year", y=indicator, title=title, markers=True)
+    fig.update_layout(xaxis_title="Year", yaxis_title=indicator, hovermode="x unified")
+    return fig
 
 
-def plot_predictions_vs_actuals(y_test: pd.Series, y_pred: pd.Series, title: str) -> go.Figure:
+def plot_predictions_vs_actuals(
+    X_test: pd.DataFrame, y_test: pd.Series, y_pred: pd.Series, title: str, target_column: str
+) -> go.Figure:
     """
     Generates a plot comparing actual vs. predicted values.
 
     Args:
+        X_test (pd.DataFrame): The feature data for testing, containing the 'year' column.
         y_test (pd.Series): The actual target values from the test set.
         y_pred (pd.Series): The predicted target values.
         title (str): The title for the plot.
+        target_column (str): The name of the target column.
 
     Returns:
         go.Figure: A Plotly figure object.
     """
-    if DEVELOPMENT_MODE:
-        # Implementação funcional para desenvolvimento
-        results_df = pd.DataFrame({
-            'Index': range(len(y_test)),
-            'Actual': y_test.values,
-            'Predicted': y_pred.values
-        })
-        
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=results_df['Index'],
-            y=results_df['Actual'],
-            mode='lines+markers',
-            name='Actual',
-            line=dict(color='blue')
-        ))
-        fig.add_trace(go.Scatter(
-            x=results_df['Index'],
-            y=results_df['Predicted'],
-            mode='lines+markers',
-            name='Predicted',
-            line=dict(color='red', dash='dash')
-        ))
-        
-        fig.update_layout(
-            title=title,
-            xaxis_title="Test Sample Index",
-            yaxis_title="GDP Value",
-            hovermode='x unified'
+    results_df = pd.DataFrame(
+        {
+            "Year": X_test['year'],
+            "Actual": y_test.values,
+            "Predicted": y_pred.values,
+        }
+    )
+    results_df = results_df.sort_values(by="Year")
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=results_df["Year"],
+            y=results_df["Actual"],
+            mode="lines+markers",
+            name="Actual",
+            line=dict(color="blue"),
         )
-        return fig
-    else:
-        # Código original comentado
-        pass
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=results_df["Year"],
+            y=results_df["Predicted"],
+            mode="lines+markers",
+            name="Predicted",
+            line=dict(color="red", dash="dash"),
+        )
+    )
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Year",
+        yaxis_title=target_column,
+        hovermode="x unified",
+    )
+    return fig

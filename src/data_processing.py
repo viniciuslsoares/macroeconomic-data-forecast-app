@@ -3,7 +3,7 @@ import numpy as np
 from typing import List
 import wbgapi as wb
 
-# Modo de desenvolvimento: usar dados fictícios para testar o frontend
+
 DEVELOPMENT_MODE = False
 
 def fetch_world_bank_data(
@@ -26,8 +26,8 @@ def fetch_world_bank_data(
     if len(years) == 0:
         raise ValueError("Input must satisfy: end_year >= start_year.")
     if DEVELOPMENT_MODE:
-        # Gerar dados fictícios realistas para desenvolvimento do frontend
-        np.random.seed(42)  # Para resultados consistentes
+        
+        
         
         data = []
         
@@ -35,23 +35,22 @@ def fetch_world_bank_data(
             for year in years:
                 row = {'economy': country, 'Year': year}
                 
-                # Gerar dados realistas baseados no país
-                if country == 'BRA':  # Brasil
+                if country == 'BRA':
                     row['GDP (current US$)'] = 1.8e12 + (year - 2000) * 5e10 + np.random.normal(0, 1e11)
                     row['Population, total'] = 200e6 + (year - 2000) * 1.5e6 + np.random.normal(0, 1e6)
                     row['CO2 emissions (kt)'] = 400000 + (year - 2000) * 5000 + np.random.normal(0, 20000)
                     row['Life expectancy at birth, total (years)'] = 70 + (year - 2000) * 0.2 + np.random.normal(0, 0.5)
                     row['Individuals using the Internet (% of population)'] = min(95, 10 + (year - 2000) * 3.5 + np.random.normal(0, 2))
                 
-                elif country == 'CAN':  # Canadá
+                elif country == 'CAN':
                     row['GDP (current US$)'] = 1.2e12 + (year - 2000) * 3e10 + np.random.normal(0, 5e10)
                     row['Population, total'] = 31e6 + (year - 2000) * 0.8e6 + np.random.normal(0, 0.5e6)
                     row['CO2 emissions (kt)'] = 550000 + (year - 2000) * -2000 + np.random.normal(0, 15000)
                     row['Life expectancy at birth, total (years)'] = 79 + (year - 2000) * 0.1 + np.random.normal(0, 0.3)
                     row['Individuals using the Internet (% of population)'] = min(98, 50 + (year - 2000) * 2 + np.random.normal(0, 1))
                 
-                # Adicionar alguns valores NaN ocasionais para testar o preprocessing
-                if np.random.random() < 0.05:  # 5% chance de NaN
+                
+                if np.random.random() < 0.05:
                     indicator_name = np.random.choice(list(indicators.values()))
                     row[indicator_name] = np.nan
                 
@@ -135,20 +134,14 @@ def _handle_missing_values(data: pd.DataFrame, threshold: float, verbose: bool =
         curr_data = curr_data.drop(columns=columns_to_drop, errors='ignore')
         data_frames.append(curr_data)
     
-
-    # Fill the missing values for each country
     for i, curr_data in enumerate(data_frames):
         df = curr_data.copy()
-        # separate the grouping series and the rest of the columns
         group_series = df['country']
         others = df.drop(columns=['country'])
-        # apply ffill/bfill to the non-grouping columns grouped by the series
         filled_others = others.groupby(group_series, group_keys=False, sort=False).apply(lambda g: g.ffill().bfill())
-        # reattach the country column and restore original column order
         filled = filled_others.copy()
         filled['country'] = group_series
         filled = filled[df.columns]
-        # reset the index
         data_frames[i] = filled.reset_index(drop=True)
     
     return data_frames
