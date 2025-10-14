@@ -173,7 +173,7 @@ Para tornar a jornada concreta, criamos uma persona que representa nosso públic
 - **Idade:** 22 anos
 - **Ocupação:** Estudante universitária de Economia.
 - **Objetivo:** Coletar, visualizar e comparar dados socioeconômicos (PIB, uso de internet, etc.) de diferentes países para sua tese. Ela também deseja gerar uma previsão simples para fortalecer seus argumentos, mas não possui conhecimento avançado em Machine Learning.
-- **Frustrações:** Perde muito tempo navegando em portais de dados governamentais, baixando e limpando planilhas. Acha o processo de treinar modelos de ML intimidante e tem dificuldade em interpretar métricas de performance como R².
+- **Frustrações:** Perde muito tempo navegando em portais de dados governamentais, baixando e limpando planilhas. Acha o processo de treinar modelos de ML intimidante e tem dificuldade para interpretar suas predições.
 
 ### Cenário (Objetivo da Jornada)
 
@@ -219,7 +219,7 @@ A estrutura abaixo representa o resultado da nossa sessão de brainstorming, com
 - **Ideias:**
   - Adicionar um ícone de ajuda `(?)` ao lado de cada modelo com uma explicação simples do seu funcionamento.
   - Além das métricas, mostrar uma interpretação textual da performance (ex: "Este modelo teve uma boa aderência aos dados de teste.").
-  - Para modelos de árvore, exibir um gráfico de "Importância das Features" para mostrar o que mais influenciou a predição.
+  - Exibir um gráfico de "Importância das Features" para mostrar o que mais influenciou a predição.
   - Permitir que o usuário ajuste a porcentagem de divisão entre treino e teste (ex: 80/20, 70/30).
 
 #### Tema 3: Dashboard e Usabilidade (Feature da Issue #3)
