@@ -11,7 +11,61 @@
 
 ## 🏛️ Arquitetura da Solução
 
-A aplicação é construída de forma modular para separar as responsabilidades, facilitar o desenvolvimento paralelo e garantir a testabilidade. A estrutura é orquestrada por uma aplicação principal (`app.py`) que utiliza módulos de backend para lógica de negócio.
+### Estilo da arquitetura
+
+TODO
+
+### Diagramas C4
+
+#### Contexto
+
+TODO
+
+#### Container
+
+TODO
+
+#### Componentes
+
+TODO
+
+### Componentes
+
+#### Aplicação Principal (app.py)
+
+Componente central que controla a aplicação Streamlit: gerencia a interface do usuário e coordena a interação entre todos os módulos. Dentre suas responsabilidades estão:
+
+- Renderizar a interface interativa utilizando a biblioteca Streamlit
+- Reagir ao input do usuário (seleção de países, seleção de ano, modelos)
+- Gerenciar o estado glocal da aplicação (página atual, opções selecionadas, dados e modelos)
+- Exibir resultados e métricas dos treinamentos
+- Gerenciar caches para evitar a transmissão de dados desnecessária
+
+#### Processamento de Dados (src/data_processing.py)
+
+Responsável pela coleta, seleção e pré-processamento dos dados econômicos utilizado para treinamentos. Esse componente:
+
+- Coleta dados dos países e indicadores selecionados através da API pública do Banco Mundial
+- Limpa dados e tratar valores ausentes através de interpolação simples
+- Gera dados fictícios (mocks) para testes automatizados
+- Estrutura dados em formato adequado para análise temporal, garantindo sua consistência e qualidade
+
+#### Treinamento de Modelos (src/model_training.py)
+
+Componente que contém toda a lógica de aprendizado de máquina, desde a preparação dos dados até as predições realizadas por modelos que já passaram pelo treinamento. Ele é responsável por:
+
+- Processar os dados para treinamento (fazendo o split treino/teste, respeitando a ordem temporal)
+- Treinar diferentes modelos de regressão (Linear, Random Forest, Gradient Boosting, etc.)
+- Avaliar performance dos modelos através das métricas MAE, MSE e R²
+- Realizar predições para anos futuros
+
+#### Visualização (src/visualization.py)
+
+Cria as visualizações gráficas necessárias através da biblioteca Plotly. Esse componente é responsável por criar todas as visualizações gráficas necessárias:
+
+- Tendência temporal dos valores
+- Predições X valores reais
+- Importância de cada feature para modelos tree-based
 
 ### Diagrama de Arquitetura
 
