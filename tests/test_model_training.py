@@ -17,12 +17,13 @@ from src.model_training import (
 )
 
 # Define the model names to be used in parameterized tests
-# These names must match the keys in the `select_model` function
+# These names must match the keys in the MODEL_REGISTRY (display names)
 MODEL_NAMES = [
-    "LinearRegression",
-    "RandomForestRegressor",
-    "GradientBoostingRegressor"
+    "Linear Regression",
+    "Random Forest",
+    "Gradient Boosting"
 ]
+
 
 @pytest.fixture
 def sample_data() -> pd.DataFrame:
@@ -35,16 +36,19 @@ def sample_data() -> pd.DataFrame:
         'feature1': np.arange(10),
         'feature2': np.arange(10, 20),
         'target': np.arange(20, 30) * 1.5 + np.random.rand(10),
-        'year': np.arange(2010, 2020) # Add a year column for time-series split
+        # Add a year column for time-series split
+        'year': np.arange(2010, 2020)
     }
     return pd.DataFrame(data)
+
 
 def test_prepare_data(sample_data):
     """
     Tests the prepare_data function to ensure it splits data correctly.
     Verifies the types, shapes, and ratio of the output splits.
     """
-    X_train, X_test, y_train, y_test = prepare_data(sample_data, target_column='target')
+    X_train, X_test, y_train, y_test = prepare_data(
+        sample_data, target_column='target')
 
     # 1. Check if the function returns four objects
     assert X_train is not None
@@ -68,6 +72,8 @@ def test_prepare_data(sample_data):
     assert len(y_train) + len(y_test) == total_rows
 
 # FIX: Added the list of model names to the parametrize decorator
+
+
 @pytest.mark.parametrize("model_name", MODEL_NAMES)
 def test_select_model(model_name):
     """
@@ -80,6 +86,7 @@ def test_select_model(model_name):
     assert is_regressor(model)
     assert not is_classifier(model)
 
+
 def test_select_model_invalid():
     """
     Tests that select_model raises a ValueError for an unsupported model name.
@@ -88,6 +95,8 @@ def test_select_model_invalid():
         select_model("InvalidModelName")
 
 # FIX: Added the list of model names to the parametrize decorator
+
+
 @pytest.mark.parametrize("model_name", MODEL_NAMES)
 def test_train_and_predict_flow(sample_data, model_name):
     """
@@ -96,13 +105,13 @@ def test_train_and_predict_flow(sample_data, model_name):
     """
     # 1. Prepare data
     X_train, X_test, y_train, _ = prepare_data(sample_data, 'target')
-    
+
     # 2. Select model
     model_instance = select_model(model_name)
-    
+
     # 3. Train model
     trained_model = train_model(model_instance, X_train, y_train)
-    
+
     # FIX: Use scikit-learn's official utility to check if the model is fitted
     try:
         check_is_fitted(trained_model)
@@ -111,10 +120,11 @@ def test_train_and_predict_flow(sample_data, model_name):
 
     # 4. Make prediction
     prediction = make_prediction(trained_model, X_test)
-    
+
     # Assert that the prediction output has the correct shape
     assert isinstance(prediction, np.ndarray)
     assert len(prediction) == len(X_test)
+
 
 def test_evaluate_model():
     """
@@ -131,9 +141,9 @@ def test_evaluate_model():
     model = MockModel()
     X_test = pd.DataFrame({
         'feature1': [1.0, 2.0, 3.0, 4.0],
-        'feature2': [10.0, 20.0, 30.0, 40.0] 
+        'feature2': [10.0, 20.0, 30.0, 40.0]
     })
-    y_test = pd.Series([2.5, 3.5, 6.5, 7.5]) # True values
+    y_test = pd.Series([2.5, 3.5, 6.5, 7.5])  # True values
 
     metrics = evaluate_model(model, X_test, y_test)
 
@@ -154,4 +164,3 @@ def test_evaluate_model():
     assert metrics['mse'] == pytest.approx(0.25)
     # FIX: Corrected the expected R-squared value
     assert metrics['r2_score'] == pytest.approx(0.941176, abs=1e-5)
-
