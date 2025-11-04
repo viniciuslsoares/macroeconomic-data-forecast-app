@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from src.data_processing import fetch_world_bank_data
-from src.model_training import select_model, prepare_data, train_model, evaluate_model, make_prediction
+from src.model_training import run_training_pipeline
 from src.visualization import plot_indicator_trend, plot_predictions_vs_actuals
 from src.model_registry import get_model_names
 
@@ -57,44 +57,24 @@ with st.sidebar:
     if st.button("Train Model & Predict", type="primary", use_container_width=True):
         with st.spinner("Training model... Please wait."):
 
+            # 1. Executar o pipeline
+            # O END_YEAR está definido globalmente em app.py
             country_data = main_data[selected_country_index].copy()
 
-            if 'country' in country_data.columns:
-                country_data_for_training = country_data.drop(
-                    columns=['country'])
-            else:
-                country_data_for_training = country_data
-
-            X_train, X_test, y_train, y_test = prepare_data(
-                country_data_for_training, selected_target_column
+            results = run_training_pipeline(
+                country_data=country_data,
+                target_column=selected_target_column,
+                model_name=selected_model,
+                end_year=END_YEAR
             )
 
-            # Save all splits in session_state so they are accessible later
-            st.session_state['X_train'], st.session_state['y_train'] = X_train, y_train
-            st.session_state['X_test'], st.session_state['y_test'] = X_test, y_test
+            # 2. Salvar resultados na sessão
+            # Isso substitui todos os 'st.session_state[...]' = ... individuais
+            for key, value in results.items():
+                st.session_state[key] = value
 
-            unfitted_model = select_model(selected_model)
-            model = train_model(unfitted_model, X_train, y_train)
-            st.session_state['trained_model'] = model
-
-            metrics = evaluate_model(model, X_test, y_test)
-            st.session_state['metrics'] = metrics
-
-            # Prepare features for the single next-year prediction (END_YEAR + 1)
-            next_year_features = pd.DataFrame({'year': [END_YEAR + 1]})
-
-            # Determine the source for other features: X_test_df if not empty, else X_train
-            features_source_df = X_test if not X_test.empty else X_train
-
-            # Populate other features using the last known values from the chosen source
-            other_features = features_source_df.drop(
-                columns=['year'], errors='ignore').columns
-            for feature in other_features:
-                next_year_features[feature] = features_source_df[feature].iloc[-1]
-
-            prediction = make_prediction(model, next_year_features)
-            st.session_state['prediction'] = prediction[0]
-            st.session_state['selected_target_column'] = selected_target_column
+            # Salva o nome do país selecionado para os gráficos
+            st.session_state['selected_country_name'] = selected_country_name
 
             st.success("Model trained successfully!")
 
@@ -138,11 +118,11 @@ with tab2:
             "https://media1.tenor.com/m/y2uA8hd_3tEAAAAC/what-are-you-waiting-for-do-it.gif", width=300)
     else:
         ECONOMIC_INDICATORS = {'GDP (current US$)'}
-        is_economic = st.session_state['selected_target_column'] in ECONOMIC_INDICATORS
+        is_economic = st.session_state['target_column'] in ECONOMIC_INDICATORS
 
         with st.container(border=True):
             st.subheader(
-                f"🔮 Prediction for {st.session_state['selected_target_column']} in {END_YEAR + 1}")
+                f"🔮 Prediction for {st.session_state['target_column']} in {END_YEAR + 1}")
             pred_value = st.session_state['prediction']
 
             if is_economic:
@@ -151,7 +131,7 @@ with tab2:
                 formatted_pred = f"{pred_value:,.0f}"
 
             st.metric(
-                label=f"Predicted {st.session_state['selected_target_column']}",
+                label=f"Predicted {st.session_state['target_column']}",
                 value=formatted_pred,
                 help="This is the model's prediction for the next year based on the latest available data."
             )
@@ -251,6 +231,6 @@ with tab2:
                 combined_y_actual,
                 combined_y_pred,
                 f"Model Predictions vs. Actuals for {selected_country_name} (with 5-year forecast)",
-                st.session_state['selected_target_column']
+                st.session_state['target_column']
             )
             st.plotly_chart(fig_pred, use_container_width=True)
