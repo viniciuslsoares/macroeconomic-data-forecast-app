@@ -4,12 +4,12 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 
 """
 Central Model Registry
-Este dicionário é a fonte única da verdade para todos os modelos no aplicativo.
-Formato:
-"Nome de Exibição (UI)": (
-    "Nome Interno (para logs/IDs)",
-    ClasseDoModelo,
-    {dicionário_de_hiperparâmetros_padrão}
+This dictionary is the single source of truth for all models in the application.
+Format:
+"Display Name (UI)": (
+    "Internal Name (for logs/IDs)",
+    ModelClass,
+    {default_hyperparameters_dict}
 )
 """
 MODEL_REGISTRY = {
@@ -32,25 +32,25 @@ MODEL_REGISTRY = {
 
 
 def get_model_names():
-    """Retorna a lista de nomes de exibição para a UI."""
+    """Returns the list of display names for the UI."""
     return list(MODEL_REGISTRY.keys())
 
 
 def get_model_instance(display_name: str):
-    """Retorna uma instância não treinada do modelo com base no nome de exibição."""
+    """Returns an unfitted model instance based on the display name."""
     if display_name not in MODEL_REGISTRY:
         raise ValueError(
-            f"Modelo '{display_name}' não encontrado no registro.")
+            f"Model '{display_name}' not found in registry.")
 
     _internal_name, model_class, params = MODEL_REGISTRY[display_name]
     return model_class(**params)
 
 
 def get_internal_model_name(display_name: str):
-    """Retorna o nome interno do modelo com base no nome de exibição."""
+    """Returns the internal model name based on the display name."""
     if display_name not in MODEL_REGISTRY:
         raise ValueError(
-            f"Modelo '{display_name}' não encontrado no registro.")
+            f"Model '{display_name}' not found in registry.")
 
     internal_name, _model_class, _params = MODEL_REGISTRY[display_name]
     return internal_name
