@@ -13,7 +13,11 @@
 
 ### Estilo da arquitetura
 
-TODO
+O estilo de arquitetura selecionado para este projeto é o MVC (model, view, controller). A intenção é separar a aplicação em módulos com funcionalidades bem definidas para garantir uma boa legibilidade do código fonte e coesão entre os diferentes arquivos. Na prática, vamos separar os arquivos já desenvolvidos de acordo com sua funcionalidade:
+
+- Model: `model_training.py` e `data_processing.py`, que processam os dados e os utilizam para a avaliação dos modelos;
+- View: `visualization.py`, que fornece funções para a visualização dos dados processados e dos resultados obtidos pelos modelos;
+- Controller: `app.py`, que controla o fluxo principal do projeto e trabalha como um orquestrador ao concatenar os demais módulos para formar uma aplicação completa e coesa.
 
 ### Diagramas C4
 
