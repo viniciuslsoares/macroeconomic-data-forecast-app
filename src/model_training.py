@@ -3,19 +3,11 @@ import numpy as np
 from typing import Tuple, Dict, Any, Literal, List
 
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from src.model_registry import get_model_instance
 
-DEVELOPMENT_MODE = True
 
-MODELS = {
-    "Linear Regression": LinearRegression,
-    "Random Forest": RandomForestRegressor,
-    "Gradient Boosting": GradientBoostingRegressor,
-}
-
-def select_model(model_name) -> Any: 
+def select_model(model_name) -> Any:
     """
     Selects and instantiates a scikit-learn regression model based on its name.
 
@@ -24,8 +16,7 @@ def select_model(model_name) -> Any:
     the training or evaluation logic.
 
     Args:
-        model_name: The name of the model to select. Must be one of the
-                    predefined choices in the ModelChoice type.
+        model_name: The display name of the model to select (e.g., "Linear Regression").
 
     Returns:
         An unfitted instance of the selected scikit-learn regressor.
@@ -33,23 +24,13 @@ def select_model(model_name) -> Any:
     Raises:
         ValueError: If the model_name is not one of the supported models.
     """
-    models = {
-        'LinearRegression': LinearRegression(),
-        'RandomForestRegressor': RandomForestRegressor(random_state=42),
-        'GradientBoostingRegressor': GradientBoostingRegressor(random_state=42)
-    }
-    
-    model = models.get(model_name)
-    if model is None:
-        raise ValueError(f"Invalid model name: {model_name}. "
-                         f"Choose from {list(models.keys())}")
-    return model
+    return get_model_instance(model_name)
 
 
 def prepare_data(
-    df: pd.DataFrame, 
-    target_column: str, 
-    test_years_count: int = 5, 
+    df: pd.DataFrame,
+    target_column: str,
+    test_years_count: int = 5,
 ) -> Tuple:
     """
     Prepares the dataset for model training by separating features and target,
@@ -68,14 +49,15 @@ def prepare_data(
         - y_test: Target variable for the testing set.
     """
     if target_column not in df.columns:
-        raise ValueError(f"Target column '{target_column}' not found in DataFrame.")
+        raise ValueError(
+            f"Target column '{target_column}' not found in DataFrame.")
 
     df_sorted = df.sort_values(by='year')
 
     # Determine the split point
     split_index = len(df_sorted) - test_years_count
-    if split_index < 0: # Handle cases where not enough data for test_years_count
-        split_index = 0 # Use all data for training, no test set
+    if split_index < 0:  # Handle cases where not enough data for test_years_count
+        split_index = 0  # Use all data for training, no test set
 
     X = df_sorted.drop(columns=[target_column])
     y = df_sorted[target_column]
