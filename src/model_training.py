@@ -127,3 +127,94 @@ def make_prediction(model: Any, X_new: pd.DataFrame) -> np.ndarray:
         A numpy array containing the predictions.
     """
     return model.predict(X_new)
+
+
+def _prepare_future_features(features_source_df: pd.DataFrame, end_year: int) -> pd.DataFrame:
+    """
+    Prepara um DataFrame com as features para a predição do próximo ano.
+
+    Esta é uma função auxiliar privada que engenharia as features necessárias
+    para fazer predições futuras, usando os últimos valores conhecidos.
+
+    Args:
+        features_source_df: DataFrame contendo as features mais recentes (geralmente X_test ou X_train).
+        end_year: O último ano dos dados de treinamento.
+
+    Returns:
+        DataFrame com uma única linha contendo as features para o ano seguinte.
+    """
+    # Prepara as features para o ano seguinte (end_year + 1)
+    next_year_features = pd.DataFrame({'year': [end_year + 1]})
+
+    # Popula as outras features usando os últimos valores conhecidos da fonte
+    other_features = features_source_df.drop(
+        columns=['year'], errors='ignore').columns
+    for feature in other_features:
+        if feature in features_source_df.columns:
+            next_year_features[feature] = features_source_df[feature].iloc[-1]
+        else:
+            # Fallback caso a coluna não exista
+            next_year_features[feature] = 0
+
+    return next_year_features
+
+
+def run_training_pipeline(country_data: pd.DataFrame, target_column: str, model_name: str, end_year: int) -> dict:
+    """
+    Executa o pipeline completo de treinamento, avaliação e predição.
+
+    Esta função orquestra todo o fluxo de ML, desde a preparação dos dados
+    até a predição final, encapsulando toda a lógica de negócio de ML.
+
+    Args:
+        country_data: DataFrame contendo os dados do país a ser analisado.
+        target_column: Nome da coluna que será o alvo da predição.
+        model_name: Nome de exibição do modelo a ser usado (ex: "Linear Regression").
+        end_year: Último ano presente nos dados de treinamento.
+
+    Returns:
+        Dicionário contendo todos os artefatos gerados pelo pipeline:
+        - trained_model: O modelo treinado
+        - metrics: Dicionário com métricas de avaliação (MAE, MSE, R²)
+        - prediction: Valor predito para o próximo ano
+        - X_train, y_train: Dados de treino
+        - X_test, y_test: Dados de teste
+        - target_column: Nome da coluna alvo (para referência)
+    """
+
+    # 1. Preparar dados (remover coluna 'country' se existir)
+    if 'country' in country_data.columns:
+        country_data_for_training = country_data.drop(columns=['country'])
+    else:
+        country_data_for_training = country_data
+
+    X_train, X_test, y_train, y_test = prepare_data(
+        country_data_for_training, target_column
+    )
+
+    # 2. Selecionar e Treinar Modelo
+    unfitted_model = select_model(model_name)
+    model = train_model(unfitted_model, X_train, y_train)
+
+    # 3. Avaliar Modelo
+    metrics = evaluate_model(model, X_test, y_test)
+
+    # 4. Preparar Features Futuras
+    # Determinar a fonte: X_test se não estiver vazio, senão X_train
+    features_source_df = X_test if not X_test.empty else X_train
+    next_year_features = _prepare_future_features(features_source_df, end_year)
+
+    # 5. Fazer Predição
+    prediction = make_prediction(model, next_year_features)
+
+    # 6. Retornar todos os artefatos
+    return {
+        "trained_model": model,
+        "metrics": metrics,
+        "prediction": prediction[0],
+        "X_train": X_train,
+        "y_train": y_train,
+        "X_test": X_test,
+        "y_test": y_test,
+        "target_column": target_column
+    }
