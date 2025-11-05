@@ -8,7 +8,6 @@ from abc import ABC, abstractmethod
 DEVELOPMENT_MODE = False
 
 
-
 class DataStrategy(ABC):
     """Abstract base class for data source strategies."""
     
@@ -67,17 +66,14 @@ class WorldBankAPIStrategy(DataStrategy):
             }
 
         # Import raw data
-        raw = wb.data.DataFrame(
-            indicators.keys(), countries, time=years, labels=False)
+        raw = wb.data.DataFrame(indicators.keys(), countries, time=years, labels=False)
         raw.index.names = ['country', 'indicator']
         raw = raw.reset_index()
 
         # Ensure features are on the column
-        df = raw.sort_values(['country', 'indicator'])
-        df_melted = pd.melt(
-            df, id_vars=['country', 'indicator'], var_name='year', value_name='value')
-        data = df_melted.pivot(
-            index=['country', 'year'], columns='indicator', values='value')
+        df = raw.sort_values(['country','indicator'])
+        df_melted = pd.melt(df, id_vars=['country', 'indicator'], var_name='year', value_name='value')
+        data = df_melted.pivot(index=['country', 'year'], columns='indicator', values='value')
         data = data.reset_index()
         data['year'] = data['year'].str.replace('YR', '').astype(int)
 
