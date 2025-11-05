@@ -57,8 +57,8 @@ with st.sidebar:
     if st.button("Train Model & Predict", type="primary", use_container_width=True):
         with st.spinner("Training model... Please wait."):
 
-            # 1. Executar o pipeline
-            # O END_YEAR está definido globalmente em app.py
+            # 1. Execute the pipeline
+            # END_YEAR is defined globally in app.py
             country_data = main_data[selected_country_index].copy()
 
             results = run_training_pipeline(
@@ -68,12 +68,12 @@ with st.sidebar:
                 end_year=END_YEAR
             )
 
-            # 2. Salvar resultados na sessão
-            # Isso substitui todos os 'st.session_state[...]' = ... individuais
+            # 2. Save results to session
+            # This replaces all individual 'st.session_state[...]' = ... assignments
             for key, value in results.items():
                 st.session_state[key] = value
 
-            # Salva o nome do país selecionado para os gráficos
+            # Save the selected country name for the charts
             st.session_state['selected_country_name'] = selected_country_name
 
             st.success("Model trained successfully!")
