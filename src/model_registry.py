@@ -1,4 +1,3 @@
-# src/model_registry.py
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 
