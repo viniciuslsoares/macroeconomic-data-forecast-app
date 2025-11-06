@@ -1,6 +1,6 @@
 import pandas as pd
 import plotly.graph_objects as go
-from src.visualization import plot_indicator_trend, plot_predictions_vs_actuals
+from src.view.visualization import plot_indicator_trend, plot_predictions_vs_actuals
 
 def test_plot_indicator_trend_returns_figure():
     """

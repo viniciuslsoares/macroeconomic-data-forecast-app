@@ -4,7 +4,9 @@ from typing import Tuple, Dict, Any, Literal, List
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from src.model_registry import get_model_instance
+import sys
+sys.path.append(".")
+from src.model.model_registry import get_model_instance
 
 
 def select_model(model_name) -> Any:

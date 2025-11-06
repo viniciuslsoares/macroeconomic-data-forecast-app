@@ -1,10 +1,12 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from src.data_processing import fetch_world_bank_data
-from src.model_training import run_training_pipeline
-from src.visualization import plot_indicator_trend, plot_predictions_vs_actuals
-from src.model_registry import get_model_names
+import sys
+sys.path.append(".")
+from src.model.data_processing import fetch_world_bank_data
+from src.model.model_training import run_training_pipeline
+from src.view.visualization import plot_indicator_trend, plot_predictions_vs_actuals
+from src.model.model_registry import get_model_names
 
 st.set_page_config(
     page_title="Economic Indicator Predictor",
