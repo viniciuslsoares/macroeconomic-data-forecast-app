@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from src.data_processing import fetch_world_bank_data
+from src.model.data_processing import fetch_world_bank_data
 import pytest
 
 def test_fetch_data_raises_error_on_empty_inputs():

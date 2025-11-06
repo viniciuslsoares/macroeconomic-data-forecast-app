@@ -8,7 +8,7 @@ from sklearn.utils.validation import check_is_fitted
 from sklearn.exceptions import NotFittedError
 
 # Import the functions to be tested from your src directory
-from src.model_training import (
+from src.model.model_training import (
     select_model,
     prepare_data,
     train_model,
