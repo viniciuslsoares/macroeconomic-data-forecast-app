@@ -2,8 +2,9 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from src.data_processing import fetch_world_bank_data
-from src.model_training import select_model, prepare_data, train_model, evaluate_model, make_prediction, MODELS
+from src.model_training import run_training_pipeline
 from src.visualization import plot_indicator_trend, plot_predictions_vs_actuals
+from src.model_registry import get_model_names
 
 st.set_page_config(
     page_title="Economic Indicator Predictor",
@@ -22,6 +23,7 @@ INDICATORS = {
 START_YEAR = 2000
 END_YEAR = 2018
 
+
 @st.cache_data
 def load_data():
     """Fetches and preprocesses data from the World Bank. Caches the result."""
@@ -29,6 +31,7 @@ def load_data():
         data = fetch_world_bank_data(
             list(COUNTRIES.values()), START_YEAR, END_YEAR, INDICATORS)
     return data
+
 
 main_data = load_data()
 
@@ -43,7 +46,7 @@ with st.sidebar:
         "Select Country", country_names)
     selected_country_index = country_names.index(selected_country_name)
 
-    selected_model = st.selectbox("Select Model", list(MODELS.keys()))
+    selected_model = st.selectbox("Select Model", get_model_names())
 
     selected_target_column = st.selectbox(
         "Select Target Column", list(INDICATORS.values()))
@@ -54,51 +57,25 @@ with st.sidebar:
     if st.button("Train Model & Predict", type="primary", use_container_width=True):
         with st.spinner("Training model... Please wait."):
 
-            # Map user-friendly names from the UI to the internal names expected by `select_model`
-            MODEL_NAME_MAP = {
-                "Linear Regression": "LinearRegression",
-                "Random Forest": "RandomForestRegressor",
-                "Gradient Boosting": "GradientBoostingRegressor",
-            }
-            
+            # 1. Execute the pipeline
+            # END_YEAR is defined globally in app.py
             country_data = main_data[selected_country_index].copy()
-            
-            if 'country' in country_data.columns:
-                country_data_for_training = country_data.drop(columns=['country'])
-            else:
-                country_data_for_training = country_data
 
-            X_train, X_test, y_train, y_test = prepare_data(
-                country_data_for_training, selected_target_column
+            results = run_training_pipeline(
+                country_data=country_data,
+                target_column=selected_target_column,
+                model_name=selected_model,
+                end_year=END_YEAR
             )
 
-            # Save all splits in session_state so they are accessible later
-            st.session_state['X_train'], st.session_state['y_train'] = X_train, y_train
-            st.session_state['X_test'], st.session_state['y_test'] = X_test, y_test
+            # 2. Save results to session
+            # This replaces all individual 'st.session_state[...]' = ... assignments
+            for key, value in results.items():
+                st.session_state[key] = value
 
-            internal_model_name = MODEL_NAME_MAP[selected_model]
-            unfitted_model = select_model(internal_model_name)
-            model = train_model(unfitted_model, X_train, y_train)
-            st.session_state['trained_model'] = model
+            # Save the selected country name for the charts
+            st.session_state['selected_country_name'] = selected_country_name
 
-            metrics = evaluate_model(model, X_test, y_test)
-            st.session_state['metrics'] = metrics
-
-            # Prepare features for the single next-year prediction (END_YEAR + 1)
-            next_year_features = pd.DataFrame({'year': [END_YEAR + 1]})
-            
-            # Determine the source for other features: X_test_df if not empty, else X_train
-            features_source_df = X_test if not X_test.empty else X_train
-
-            # Populate other features using the last known values from the chosen source
-            other_features = features_source_df.drop(columns=['year'], errors='ignore').columns
-            for feature in other_features:
-                next_year_features[feature] = features_source_df[feature].iloc[-1]
-
-            prediction = make_prediction(model, next_year_features)
-            st.session_state['prediction'] = prediction[0]
-            st.session_state['selected_target_column'] = selected_target_column
-            
             st.success("Model trained successfully!")
 
 st.title("📈 Economic Indicator Prediction Dashboard")
@@ -141,19 +118,20 @@ with tab2:
             "https://media1.tenor.com/m/y2uA8hd_3tEAAAAC/what-are-you-waiting-for-do-it.gif", width=300)
     else:
         ECONOMIC_INDICATORS = {'GDP (current US$)'}
-        is_economic = st.session_state['selected_target_column'] in ECONOMIC_INDICATORS
+        is_economic = st.session_state['target_column'] in ECONOMIC_INDICATORS
 
         with st.container(border=True):
-            st.subheader(f"🔮 Prediction for {st.session_state['selected_target_column']} in {END_YEAR + 1}")
+            st.subheader(
+                f"🔮 Prediction for {st.session_state['target_column']} in {END_YEAR + 1}")
             pred_value = st.session_state['prediction']
-            
+
             if is_economic:
                 formatted_pred = f"${pred_value:,.0f}"
             else:
                 formatted_pred = f"{pred_value:,.0f}"
 
             st.metric(
-                label=f"Predicted {st.session_state['selected_target_column']}",
+                label=f"Predicted {st.session_state['target_column']}",
                 value=formatted_pred,
                 help="This is the model's prediction for the next year based on the latest available data."
             )
@@ -205,11 +183,13 @@ with tab2:
             last_training_year = END_YEAR
 
             # Generate future years for prediction
-            future_years = pd.DataFrame({'year': range(last_training_year + 1, last_training_year + 6)})
+            future_years = pd.DataFrame(
+                {'year': range(last_training_year + 1, last_training_year + 6)})
 
             # For other features, use the last known values from X_test_df
             # This assumes other features are not time-dependent or their last values are good enough for future prediction
-            other_features = X_test_df.drop(columns=['year'], errors='ignore').columns
+            other_features = X_test_df.drop(
+                columns=['year'], errors='ignore').columns
             for feature in other_features:
                 # Use the last known value for each other feature
                 future_years[feature] = X_test_df[feature].iloc[-1]
@@ -220,17 +200,19 @@ with tab2:
             # Combine X_train, X_test, and future_years for plotting
             # Ensure X_train and X_test are sorted by year before concatenation
             # (prepare_data already sorts the original df, so X_train and X_test should be sorted)
-            
+
             X_train = st.session_state['X_train']
             y_train = st.session_state['y_train']
             X_test_df = st.session_state['X_test']
             y_test_series = st.session_state['y_test']
 
-            combined_X = pd.concat([X_train, X_test_df, future_years], ignore_index=True)
+            combined_X = pd.concat(
+                [X_train, X_test_df, future_years], ignore_index=True)
 
             # Combine y_train (actuals for training data), y_test (actuals for test data), and NaNs for future years
             combined_y_actual = pd.Series(
-                np.concatenate([y_train.values, y_test_series.values, np.full(len(future_years), np.nan)]),
+                np.concatenate(
+                    [y_train.values, y_test_series.values, np.full(len(future_years), np.nan)]),
                 index=combined_X.index
             )
 
@@ -249,7 +231,6 @@ with tab2:
                 combined_y_actual,
                 combined_y_pred,
                 f"Model Predictions vs. Actuals for {selected_country_name} (with 5-year forecast)",
-                st.session_state['selected_target_column']
+                st.session_state['target_column']
             )
             st.plotly_chart(fig_pred, use_container_width=True)
-
