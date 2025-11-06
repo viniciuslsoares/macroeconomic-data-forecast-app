@@ -23,19 +23,19 @@ O estilo de arquitetura selecionado para este projeto é o MVC (model, view, con
 
 #### Contexto
 
-TODO
+![Diagrama de Contexto](imgs/context_diagram.png) 
 
 #### Container
 
-TODO
+![Diagrama de Container](imgs/container_diagram.png)
 
 #### Componentes
 
-TODO
+![Diagrama de Componentes](imgs/components_diagram.png)
 
 ### Componentes
 
-#### Aplicação Principal (app.py)
+#### Aplicação Principal (app.py) - Controller
 
 Componente central que controla a aplicação Streamlit: gerencia a interface do usuário e coordena a interação entre todos os módulos. Dentre suas responsabilidades estão:
 
@@ -45,7 +45,7 @@ Componente central que controla a aplicação Streamlit: gerencia a interface do
 - Exibir resultados e métricas dos treinamentos
 - Gerenciar caches para evitar a transmissão de dados desnecessária
 
-#### Processamento de Dados (src/data_processing.py)
+#### Processamento de Dados (src/data_processing.py) - Model
 
 Responsável pela coleta, seleção e pré-processamento dos dados econômicos utilizado para treinamentos. Esse componente:
 
@@ -54,16 +54,17 @@ Responsável pela coleta, seleção e pré-processamento dos dados econômicos u
 - Gera dados fictícios (mocks) para testes automatizados
 - Estrutura dados em formato adequado para análise temporal, garantindo sua consistência e qualidade
 
-#### Treinamento de Modelos (src/model_training.py)
+#### Treinamento de Modelos (src/model_training.py & src/model_registry.py) - Model
 
 Componente que contém toda a lógica de aprendizado de máquina, desde a preparação dos dados até as predições realizadas por modelos que já passaram pelo treinamento. Ele é responsável por:
 
+- Instanciar e definir os modelos
 - Processar os dados para treinamento (fazendo o split treino/teste, respeitando a ordem temporal)
 - Treinar diferentes modelos de regressão (Linear, Random Forest, Gradient Boosting, etc.)
 - Avaliar performance dos modelos através das métricas MAE, MSE e R²
 - Realizar predições para anos futuros
 
-#### Visualização (src/visualization.py)
+#### Visualização (src/visualization.py) - View
 
 Cria as visualizações gráficas necessárias através da biblioteca Plotly. Esse componente é responsável por criar todas as visualizações gráficas necessárias:
 
