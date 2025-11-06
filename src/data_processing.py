@@ -211,4 +211,4 @@ def fetch_world_bank_data(
         else:
             strategy = WorldBankAPIStrategy()
     
-    return strategy.fetch_data(countries, start_year, end_year, indicators, missing_values_threshold, verbose)
+    return strategy.fetch_data(countries, start_year, end_year, indicators, missing_values_threshold, verbose) 
