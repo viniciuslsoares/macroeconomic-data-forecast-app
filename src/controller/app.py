@@ -1,12 +1,23 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import sys
-sys.path.append(".")
-from src.model.data_processing import fetch_world_bank_data
-from src.model.model_training import run_training_pipeline
-from src.view.visualization import plot_indicator_trend, plot_predictions_vs_actuals
 from src.model.model_registry import get_model_names
+from src.view.visualization import plot_indicator_trend, plot_predictions_vs_actuals, prepare_plot_data
+from src.model.model_training import run_training_pipeline
+from src.model.data_processing import fetch_world_bank_data
+from datetime import datetime
+import numpy as np
+import pandas as pd
+import streamlit as st
+import sys
+import os
+
+# Adiciona a raiz do projeto ao sys.path dinamicamente
+# Isso permite que o Python encontre o pacote 'src' mesmo rodando de dentro de 'src/controller'
+current_dir = os.path.dirname(os.path.abspath(__file__))  # src/controller
+src_dir = os.path.dirname(current_dir)                    # src
+project_root = os.path.dirname(src_dir)                   # raiz do projeto
+sys.path.insert(0, project_root)
+
+# AGORA (e somente agora) faça as importações do projeto
+
 
 st.set_page_config(
     page_title="Economic Indicator Predictor",
@@ -14,6 +25,58 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Inject custom CSS for improved UX - make static text non-selectable
+st.markdown("""
+    <style>
+        /* Make static text elements non-selectable and use default cursor */
+        p, h1, h2, h3, h4, h5, h6, div, span, label, 
+        .stMarkdown, .stText, .stMetric, .stCaption,
+        .element-container, .stAlert, .stInfo, .stWarning, .stError, .stSuccess {
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            cursor: default;
+        }
+        
+        /* Exceptions: Keep inputs, textareas, and code blocks selectable */
+        input, textarea, code, pre, .stCodeBlock {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            -moz-user-select: text !important;
+            -ms-user-select: text !important;
+            cursor: text;
+        }
+        
+        /* Links should have pointer cursor */
+        a {
+            cursor: pointer !important;
+            user-select: none;
+        }
+        
+        /* Selectboxes, buttons, and other interactive elements should have pointer cursor */
+        button, select, [role="button"], [role="option"],
+        .stSelectbox, .stButton, .stSlider, .stCheckbox {
+            cursor: pointer !important;
+        }
+        
+        /* DataFrames and tables should allow text selection for copying */
+        table, .stDataFrame, .dataframe {
+            user-select: text !important;
+            cursor: default;
+        }
+        
+        /* Plotly charts should have default cursor */
+        .js-plotly-plot, .plotly {
+            cursor: default !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Initialize session state for model history
+if 'model_history' not in st.session_state:
+    st.session_state['model_history'] = {}
 
 COUNTRIES = {"Brazil": "BRA", "Canada": "CAN"}
 INDICATORS = {
@@ -70,7 +133,7 @@ with st.sidebar:
                 end_year=END_YEAR
             )
 
-            # 2. Save results to session
+            # 2. Save results to session (for backward compatibility with existing tabs)
             # This replaces all individual 'st.session_state[...]' = ... assignments
             for key, value in results.items():
                 st.session_state[key] = value
@@ -78,13 +141,27 @@ with st.sidebar:
             # Save the selected country name for the charts
             st.session_state['selected_country_name'] = selected_country_name
 
+            # 3. Add to model history with unique identifier
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            model_id = f"{selected_model} - {selected_target_column} - {timestamp}"
+
+            # Create a copy of results with additional metadata
+            history_entry = results.copy()
+            history_entry['model_name'] = selected_model
+            history_entry['target_column'] = selected_target_column
+            history_entry['country_name'] = selected_country_name
+            history_entry['timestamp'] = timestamp
+
+            st.session_state['model_history'][model_id] = history_entry
+
             st.success("Model trained successfully!")
 
 st.title("📈 Economic Indicator Prediction Dashboard")
 st.markdown(f"Currently analyzing: **{selected_country_name}**")
 
-tab1, tab2 = st.tabs(["📊 Data Exploration & Visualization",
-                     "🧠 Model Training & Prediction"])
+tab1, tab2, tab3 = st.tabs(["📊 Data Exploration & Visualization",
+                            "🧠 Model Training & Prediction",
+                            "⚖️ Model Comparison"])
 
 with tab1:
     st.header("Initial Data Analysis", divider='rainbow')
@@ -176,56 +253,18 @@ with tab2:
         with st.container(border=True):
             st.subheader("🎯 Actual vs. Predicted Values (on Test Set)")
             st.caption("This chart helps to visually assess the model's performance by comparing its predictions against the actual historical data it did not see during training, and includes a 5-year forecast.")
-            model = st.session_state['trained_model']
-            X_test_df = st.session_state['X_test']
-            y_test_series = st.session_state['y_test']
-            y_pred_test = model.predict(X_test_df)
 
-            # Get the last year from the training data (which is END_YEAR)
-            last_training_year = END_YEAR
+            # Prepare plot data using the View layer function
+            model_entry = {
+                'trained_model': st.session_state['trained_model'],
+                'X_train': st.session_state['X_train'],
+                'y_train': st.session_state['y_train'],
+                'X_test': st.session_state['X_test'],
+                'y_test': st.session_state['y_test']
+            }
 
-            # Generate future years for prediction
-            future_years = pd.DataFrame(
-                {'year': range(last_training_year + 1, last_training_year + 6)})
-
-            # For other features, use the last known values from X_test_df
-            # This assumes other features are not time-dependent or their last values are good enough for future prediction
-            other_features = X_test_df.drop(
-                columns=['year'], errors='ignore').columns
-            for feature in other_features:
-                # Use the last known value for each other feature
-                future_years[feature] = X_test_df[feature].iloc[-1]
-
-            # Make predictions for future years
-            y_pred_future = model.predict(future_years)
-
-            # Combine X_train, X_test, and future_years for plotting
-            # Ensure X_train and X_test are sorted by year before concatenation
-            # (prepare_data already sorts the original df, so X_train and X_test should be sorted)
-
-            X_train = st.session_state['X_train']
-            y_train = st.session_state['y_train']
-            X_test_df = st.session_state['X_test']
-            y_test_series = st.session_state['y_test']
-
-            combined_X = pd.concat(
-                [X_train, X_test_df, future_years], ignore_index=True)
-
-            # Combine y_train (actuals for training data), y_test (actuals for test data), and NaNs for future years
-            combined_y_actual = pd.Series(
-                np.concatenate(
-                    [y_train.values, y_test_series.values, np.full(len(future_years), np.nan)]),
-                index=combined_X.index
-            )
-
-            # y_pred_test is already calculated based on X_test_df
-            # For y_pred_train, we need to predict on X_train
-            y_pred_train = model.predict(X_train)
-
-            # Combine y_pred_train, y_pred_test, and y_pred_future for plotting
-            combined_y_pred = pd.Series(
-                np.concatenate([y_pred_train, y_pred_test, y_pred_future]),
-                index=combined_X.index
+            combined_X, combined_y_actual, combined_y_pred = prepare_plot_data(
+                model_entry, END_YEAR
             )
 
             fig_pred = plot_predictions_vs_actuals(
@@ -236,3 +275,173 @@ with tab2:
                 st.session_state['target_column']
             )
             st.plotly_chart(fig_pred, use_container_width=True)
+
+with tab3:
+    st.header("Model Comparison", divider='rainbow')
+
+    model_history = st.session_state.get('model_history', {})
+
+    if len(model_history) < 2:
+        st.warning(
+            "⚠️ Train at least two models to compare. Please train models using the 'Model Training & Prediction' tab.")
+        st.info("💡 Tip: Train different models or the same model with different configurations to compare their performance.")
+    else:
+        # Get list of model identifiers for selection
+        model_ids = list(model_history.keys())
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("Model A (Reference)")
+            model_a_id = st.selectbox(
+                "Select Model A:",
+                model_ids,
+                key="model_a_selector",
+                help="This model will be used as the reference for comparison."
+            )
+
+        with col2:
+            st.subheader("Model B (Challenger)")
+            # Filter out model_a_id from options for model_b
+            model_b_options = [mid for mid in model_ids if mid != model_a_id]
+            if not model_b_options:
+                st.warning(
+                    "Only one model available. Train another model to compare.")
+                model_b_id = None
+            else:
+                model_b_id = st.selectbox(
+                    "Select Model B:",
+                    model_b_options,
+                    key="model_b_selector",
+                    help="This model will be compared against Model A."
+                )
+
+        if model_b_id:
+            model_a = model_history[model_a_id]
+            model_b = model_history[model_b_id]
+
+            st.write("")
+
+            # Display model information
+            info_col1, info_col2 = st.columns(2)
+            with info_col1:
+                with st.container(border=True):
+                    st.markdown(f"**Model:** {model_a['model_name']}")
+                    st.markdown(f"**Target:** {model_a['target_column']}")
+                    st.markdown(f"**Country:** {model_a['country_name']}")
+                    st.caption(f"Trained: {model_a['timestamp']}")
+
+            with info_col2:
+                with st.container(border=True):
+                    st.markdown(f"**Model:** {model_b['model_name']}")
+                    st.markdown(f"**Target:** {model_b['target_column']}")
+                    st.markdown(f"**Country:** {model_b['country_name']}")
+                    st.caption(f"Trained: {model_b['timestamp']}")
+
+            st.write("")
+
+            # Metrics comparison
+            st.subheader("📊 Performance Metrics Comparison")
+
+            metrics_a = model_a['metrics']
+            metrics_b = model_b['metrics']
+
+            metric_col1, metric_col2, metric_col3 = st.columns(3)
+
+            ECONOMIC_INDICATORS = {'GDP (current US$)'}
+            is_economic = model_a['target_column'] in ECONOMIC_INDICATORS
+
+            with metric_col1:
+                st.metric(
+                    label="Mean Absolute Error (MAE)",
+                    value=f"${metrics_b['mae']:,.0f}" if is_economic else f"{metrics_b['mae']:,.0f}",
+                    delta=f"{metrics_b['mae'] - metrics_a['mae']:,.0f}",
+                    delta_color="inverse",
+                    help="Lower is better. Delta shows Model B - Model A."
+                )
+
+            with metric_col2:
+                st.metric(
+                    label="R-squared (R²)",
+                    value=f"{metrics_b['r2_score']:.3f}",
+                    delta=f"{metrics_b['r2_score'] - metrics_a['r2_score']:.3f}",
+                    delta_color="normal",
+                    help="Higher is better. Delta shows Model B - Model A."
+                )
+
+            with metric_col3:
+                st.metric(
+                    label="Mean Squared Error (MSE)",
+                    value=f"${metrics_b['mse']:,.0f}" if is_economic else f"{metrics_b['mse']:,.0f}",
+                    delta=f"{metrics_b['mse'] - metrics_a['mse']:,.0f}",
+                    delta_color="inverse",
+                    help="Lower is better. Delta shows Model B - Model A."
+                )
+
+            st.write("")
+
+            # Predictions comparison
+            st.subheader("🎯 Predictions Comparison")
+
+            pred_col1, pred_col2 = st.columns(2)
+
+            with pred_col1:
+                with st.container(border=True):
+                    st.markdown(f"**Model A Prediction**")
+                    pred_a = model_a['prediction']
+                    formatted_pred_a = f"${pred_a:,.0f}" if is_economic else f"{pred_a:,.0f}"
+                    st.metric(
+                        label=f"Predicted {model_a['target_column']}",
+                        value=formatted_pred_a
+                    )
+
+            with pred_col2:
+                with st.container(border=True):
+                    st.markdown(f"**Model B Prediction**")
+                    pred_b = model_b['prediction']
+                    formatted_pred_b = f"${pred_b:,.0f}" if is_economic else f"{pred_b:,.0f}"
+                    st.metric(
+                        label=f"Predicted {model_b['target_column']}",
+                        value=formatted_pred_b,
+                        delta=f"{pred_b - pred_a:,.0f}" if is_economic else f"{pred_b - pred_a:,.0f}",
+                        help="Difference: Model B - Model A"
+                    )
+
+            st.write("")
+
+            # Visualizations comparison
+            st.subheader("📈 Predictions vs Actuals Comparison")
+
+            viz_col1, viz_col2 = st.columns(2)
+
+            with viz_col1:
+                st.markdown(f"**Model A: {model_a['model_name']}**")
+                # Prepare data for Model A using the View layer function
+                combined_X_a, combined_y_actual_a, combined_y_pred_a = prepare_plot_data(
+                    model_a, END_YEAR
+                )
+
+                fig_a = plot_predictions_vs_actuals(
+                    combined_X_a,
+                    combined_y_actual_a,
+                    combined_y_pred_a,
+                    f"Model A: {model_a['model_name']}",
+                    model_a['target_column']
+                )
+                st.plotly_chart(fig_a, use_container_width=True)
+
+            with viz_col2:
+                st.markdown(f"**Model B: {model_b['model_name']}**")
+                # Prepare data for Model B using the View layer function
+                combined_X_b, combined_y_actual_b, combined_y_pred_b = prepare_plot_data(
+                    model_b, END_YEAR
+                )
+
+                fig_b = plot_predictions_vs_actuals(
+                    combined_X_b,
+                    combined_y_actual_b,
+                    combined_y_pred_b,
+                    f"Model B: {model_b['model_name']}",
+                    model_b['target_column']
+                )
+                st.plotly_chart(fig_b, use_container_width=True)
