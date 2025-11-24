@@ -9,6 +9,13 @@
 
 ---
 
+## Como executar o código
+Para executar o projeto basta rodar no seu terminal a partir da raíz do repositório o seguinte comando
+```bash
+streamlit run src/controller/app.py
+```
+Isto irá criar uma página HTTP local que te permitirá acessar a interface interativa do projeto.
+
 ## 🏛️ Arquitetura da Solução
 
 ### Estilo da arquitetura
