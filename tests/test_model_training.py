@@ -13,7 +13,10 @@ from src.model.model_training import (
     prepare_data,
     train_model,
     evaluate_model,
-    make_prediction
+    make_prediction,
+    save_model,
+    load_model,
+    evaluate_loaded_model
 )
 
 # Define the model names to be used in parameterized tests
@@ -164,3 +167,135 @@ def test_evaluate_model():
     assert metrics['mse'] == pytest.approx(0.25)
     # FIX: Corrected the expected R-squared value
     assert metrics['r2_score'] == pytest.approx(0.941176, abs=1e-5)
+
+
+def test_save_and_load_model(sample_data):
+    """
+    Tests the save_model and load_model functions.
+    Verifies that a model can be saved to bytes and loaded back correctly.
+    """
+    # 1. Prepare data and train a simple model
+    X_train, X_test, y_train, _ = prepare_data(sample_data, 'target')
+    model_instance = select_model("Linear Regression")
+    trained_model = train_model(model_instance, X_train, y_train)
+    
+    # 2. Save model to bytes
+    model_bytes = save_model(trained_model)
+    
+    # 3. Verify bytes are returned
+    assert isinstance(model_bytes, bytes)
+    assert len(model_bytes) > 0
+    
+    # 4. Save to file and load back
+    import tempfile
+    import os
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pkl') as tmp_file:
+        tmp_path = tmp_file.name
+    
+    try:
+        # Save to file
+        save_model(trained_model, tmp_path)
+        
+        # Load from file
+        loaded_model = load_model(tmp_path)
+        
+        # Verify loaded model works
+        assert loaded_model is not None
+        prediction_original = make_prediction(trained_model, X_test)
+        prediction_loaded = make_prediction(loaded_model, X_test)
+        
+        # Predictions should be identical
+        np.testing.assert_array_equal(prediction_original, prediction_loaded)
+        
+    finally:
+        # Clean up temporary file
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+def test_evaluate_loaded_model(sample_data):
+    """
+    Tests the evaluate_loaded_model function to ensure it generates all required artifacts
+    for full dashboard functionality when loading a model.
+    """
+    # 1. Prepare data and train a model
+    model_instance = select_model("Linear Regression")
+    X_train, X_test, y_train, y_test = prepare_data(sample_data, 'target')
+    trained_model = train_model(model_instance, X_train, y_train)
+    
+    # 2. Evaluate the trained model using evaluate_loaded_model
+    END_YEAR = 2019  # Sample end year
+    results = evaluate_loaded_model(
+        model=trained_model,
+        country_data=sample_data,
+        target_column='target',
+        end_year=END_YEAR,
+    )
+    
+    # 3. Verify all required artifacts are returned
+    assert isinstance(results, dict)
+    required_keys = [
+        "trained_model", "metrics", "prediction", 
+        "X_train", "y_train", "X_test", "y_test", "target_column"
+    ]
+    for key in required_keys:
+        assert key in results, f"Missing key: {key}"
+    
+    # 4. Verify the model is the same
+    assert results["trained_model"] is trained_model
+    
+    # 5. Verify metrics are calculated
+    assert isinstance(results["metrics"], dict)
+    assert "mae" in results["metrics"]
+    assert "mse" in results["metrics"]
+    assert "r2_score" in results["metrics"]
+    
+    # 6. Verify prediction is generated
+    assert isinstance(results["prediction"], (int, float))
+    
+    # 7. Verify training/test data are returned
+    assert isinstance(results["X_train"], pd.DataFrame)
+    assert isinstance(results["X_test"], pd.DataFrame)
+    assert isinstance(results["y_train"], pd.Series)
+    assert isinstance(results["y_test"], pd.Series)
+    
+    # 8. Verify target column is preserved
+    assert results["target_column"] == "target"
+
+
+@pytest.mark.parametrize("model_name", MODEL_NAMES)
+def test_evaluate_loaded_model_with_different_models(sample_data, model_name):
+    """
+    Tests that evaluate_loaded_model works with different model types.
+    """
+    # 1. Prepare data and train a model
+    model_instance = select_model(model_name)
+    X_train, X_test, y_train, y_test = prepare_data(sample_data, 'target')
+    trained_model = train_model(model_instance, X_train, y_train)
+    
+    # 2. Evaluate the trained model using evaluate_loaded_model
+    END_YEAR = 2019
+    results = evaluate_loaded_model(
+        model=trained_model,
+        country_data=sample_data,
+        target_column='target',
+        end_year=END_YEAR,
+    )
+    
+    # 3. Verify basic structure
+    assert "trained_model" in results
+    assert "metrics" in results
+    assert "prediction" in results
+    assert "X_train" in results
+    assert "X_test" in results
+    assert "y_train" in results
+    assert "y_test" in results
+    assert "target_column" in results
+    
+    # 4. Verify prediction works
+    assert isinstance(results["prediction"], (int, float))
+    
+    # 5. Verify metrics are calculated
+    assert isinstance(results["metrics"], dict)
+    assert all(key in results["metrics"] for key in ["mae", "mse", "r2_score"])

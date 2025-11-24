@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 from typing import Tuple, Dict, Any, Literal, List
+import joblib
+import io
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -131,6 +133,95 @@ def make_prediction(model: Any, X_new: pd.DataFrame) -> np.ndarray:
     return model.predict(X_new)
 
 
+def save_model(model: Any, filepath: str = None) -> bytes:
+    """
+    Save a trained model to disk or return as bytes for download.
+    
+    Args:
+        model: A trained scikit-learn model.
+        filepath: Optional file path to save the model. If None, returns bytes.
+        
+    Returns:
+        Bytes representation of the model if filepath is None.
+    """
+    if filepath:
+        joblib.dump(model, filepath)
+        return None
+    else:
+        # Save to bytes for download
+        buffer = io.BytesIO()
+        joblib.dump(model, buffer)
+        buffer.seek(0)
+        return buffer.getvalue()
+
+
+def load_model(filepath: str) -> Any:
+    """
+    Load a trained model from disk.
+    
+    Args:
+        filepath: Path to the saved model file.
+        
+    Returns:
+        The loaded trained model.
+    """
+    return joblib.load(filepath)
+
+
+def evaluate_loaded_model(model: Any, country_data: pd.DataFrame, target_column: str, end_year: int) -> dict:
+    """
+    Evaluates a loaded model against existing data to generate all necessary artifacts
+    for full dashboard functionality.
+    
+    Args:
+        model: A loaded trained model.
+        country_data: DataFrame containing the country data to be analyzed.
+        target_column: Name of the column that will be the prediction target.
+        end_year: Last year present in the training data.
+        
+    Returns:
+        Dictionary containing all artifacts needed for dashboard functionality:
+        - trained_model: The loaded model
+        - metrics: Dictionary with evaluation metrics (MAE, MSE, R²)
+        - prediction: Predicted value for the next year
+        - X_train, y_train: Training data
+        - X_test, y_test: Test data
+        - target_column: Target column name (for reference)
+    """
+    # 1. Prepare data (remove 'country' column if it exists)
+    if 'country' in country_data.columns:
+        country_data_for_training = country_data.drop(columns=['country'])
+    else:
+        country_data_for_training = country_data
+
+    X_train, X_test, y_train, y_test = prepare_data(
+        country_data_for_training, target_column
+    )
+
+    # 2. Evaluate Model
+    metrics = evaluate_model(model, X_test, y_test)
+
+    # 3. Prepare Future Features
+    # Determine the source: X_test if not empty, otherwise X_train
+    features_source_df = X_test if not X_test.empty else X_train
+    next_year_features = _prepare_future_features(features_source_df, end_year)
+
+    # 4. Make Prediction
+    prediction = make_prediction(model, next_year_features)
+
+    # 5. Return all artifacts
+    return {
+        "trained_model": model,
+        "metrics": metrics,
+        "prediction": prediction[0],
+        "X_train": X_train,
+        "y_train": y_train,
+        "X_test": X_test,
+        "y_test": y_test,
+        "target_column": target_column
+    }
+
+
 def _prepare_future_features(features_source_df: pd.DataFrame, end_year: int) -> pd.DataFrame:
     """
     Prepares a DataFrame with features for next year's prediction.
@@ -158,6 +249,9 @@ def _prepare_future_features(features_source_df: pd.DataFrame, end_year: int) ->
             # Fallback if the column does not exist
             next_year_features[feature] = 0
 
+    # Reorder columns to match the training data order
+    next_year_features = next_year_features[features_source_df.columns]
+    
     return next_year_features
 
 
