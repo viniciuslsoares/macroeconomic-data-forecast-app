@@ -76,6 +76,48 @@ def plot_predictions_vs_actuals(
     )
     return fig
 
+def plot_feature_importance(feature_importance: pd.Series, title: str) -> go.Figure:
+    """
+    Generates a horizontal bar chart visualization of feature importance scores.
+
+    This function utilizes Plotly to create an interactive visualization, automatically
+    sorting features to highlight the most significant drivers. It includes logic to
+    gracefully handle empty inputs and dynamically scales the chart height to
+    accommodate varying numbers of features without overcrowding.
+
+    Args:
+        feature_importance: A pandas Series where the index represents feature names
+                            and values represent importance scores.
+        title: The title text to display at the top of the chart.
+
+    Returns:
+        A plotly.graph_objects.Figure instance containing the rendered bar chart,
+        or an empty figure if the input data is missing.
+    """
+    if feature_importance is None or len(feature_importance) == 0:
+        # return blank figure with message
+        fig = go.Figure()
+        fig.update_layout(title=title)
+        return fig
+
+    # ensure it's a Series
+    if isinstance(feature_importance, pd.DataFrame):
+        # allow DataFrame with two cols -> series
+        if feature_importance.shape[1] >= 2:
+            feature_importance = pd.Series(data=feature_importance.iloc[:, 1].values, index=feature_importance.iloc[:, 0].values)
+
+    fi = feature_importance.copy()
+    # sort ascending for horizontal bar
+    fi = fi.sort_values(ascending=True)
+    fig = px.bar(
+        x=fi.values,
+        y=fi.index,
+        orientation='h',
+        labels={'x': 'Importance', 'y': 'Feature'},
+        title=title
+    )
+    fig.update_layout(margin=dict(l=150, r=20, t=50, b=20), height=max(300, 30 * len(fi)))
+    return fig
 
 def prepare_plot_data(model_entry: Dict[str, Any], end_year: int) -> Tuple[pd.DataFrame, pd.Series, pd.Series]:
     """
