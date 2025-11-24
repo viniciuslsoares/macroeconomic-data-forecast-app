@@ -5,3 +5,4 @@ wbgapi
 scikit-learn
 plotly
 pytest
+shap
