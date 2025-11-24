@@ -1,9 +1,9 @@
 import sys
 import os
 
-current_dir = os.path.dirname(os.path.abspath(__file__))  # src/controller
-src_dir = os.path.dirname(current_dir)                    # src
-project_root = os.path.dirname(src_dir)                   # raiz do projeto
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_dir = os.path.dirname(current_dir)
+project_root = os.path.dirname(src_dir)
 sys.path.insert(0, project_root)
 
 from src.model.model_registry import get_model_names
