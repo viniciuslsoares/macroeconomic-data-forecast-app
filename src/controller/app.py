@@ -1,3 +1,11 @@
+import sys
+import os
+
+current_dir = os.path.dirname(os.path.abspath(__file__))  # src/controller
+src_dir = os.path.dirname(current_dir)                    # src
+project_root = os.path.dirname(src_dir)                   # raiz do projeto
+sys.path.insert(0, project_root)
+
 from src.model.model_registry import get_model_names
 from src.view.visualization import plot_indicator_trend, plot_predictions_vs_actuals, prepare_plot_data
 from src.model.model_training import run_training_pipeline
@@ -6,18 +14,6 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import streamlit as st
-import sys
-import os
-
-# Adiciona a raiz do projeto ao sys.path dinamicamente
-# Isso permite que o Python encontre o pacote 'src' mesmo rodando de dentro de 'src/controller'
-current_dir = os.path.dirname(os.path.abspath(__file__))  # src/controller
-src_dir = os.path.dirname(current_dir)                    # src
-project_root = os.path.dirname(src_dir)                   # raiz do projeto
-sys.path.insert(0, project_root)
-
-# AGORA (e somente agora) faça as importações do projeto
-
 
 st.set_page_config(
     page_title="Economic Indicator Predictor",
