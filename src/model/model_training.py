@@ -15,20 +15,22 @@ from src.model.model_registry import get_model_instance
 
 def compute_feature_importance(model: Any, X: pd.DataFrame) -> pd.Series:
     """
-    Computes feature importance scores using SHAP, handling Pipelines correctly.
+    Computes and ranks feature importance scores using SHAP or model attributes.
 
-    This function extracts the inner estimator from a Pipeline and applies the 
-    preprocessor transformations to the data before calculating SHAP values. 
-    This prevents magnitude errors (e.g., importance scores of 10^23) caused 
-    by passing unscaled data to a model trained on scaled data.
+    This function prioritizes model-agnostic interpretation via SHAP values to provide
+    consistent insights across different model types. It employs a robust fallback
+    mechanism: if SHAP calculation fails, it reverts to native model attributes
+    (such as feature_importances_ or coef_) to ensure a result is always returned.
 
     Args:
-        model: The trained model or Pipeline.
-        X: The input DataFrame used for calculating importance.
+        model: The trained machine learning model to inspect.
+        X: The input DataFrame used for calculating importance. For efficiency,
+           this data is sampled before generating SHAP values.
 
     Returns:
-        A pandas Series mapping feature names to their absolute mean SHAP values,
-        sorted in descending order. Returns zeros if calculation fails.
+        A pandas Series mapping feature names to their absolute importance scores,
+        sorted in descending order. Returns a Series of zeros if importance
+        cannot be determined.
     """
     if X is None or X.shape[0] == 0:
         return pd.Series(dtype=float)
@@ -108,7 +110,7 @@ def prepare_data(
     target_column: str,
     test_years_count: int = 5,
 ) -> Tuple:
-    """ 
+    """
     Prepares the dataset for training by applying stationarity transformations.
 
     Instead of predicting absolute values directly, this function transforms the 
@@ -159,7 +161,7 @@ def prepare_data(
     return X_train, X_test, y_train, y_test
 
 
-def train_model(model: Any, X_train: pd.DataFrame, y_train: pd.Series) -> Any:
+def train_model(model: Any, X_train: pd.DataFrame, y_train: pd.Series) -> Pipeline:
     """
     Trains a machine learning model wrapped in a preprocessing pipeline.
 
@@ -259,7 +261,12 @@ def load_model(filepath: str) -> Any:
     return joblib.load(filepath)
 
 
-def evaluate_loaded_model(model: Any, country_data: pd.DataFrame, target_column: str, end_year: int) -> dict:
+def evaluate_loaded_model(
+    model: Any, 
+    country_data: pd.DataFrame, 
+    target_column: str, 
+    end_year: int
+) -> dict:
     """
     Evaluates a loaded model by reconstructing absolute values from its difference predictions.
 
@@ -360,8 +367,13 @@ def _prepare_future_features(features_source_df: pd.DataFrame, end_year: int) ->
     return next_year_features
 
 
-def run_training_pipeline(country_data: pd.DataFrame, target_column: str, model_name: str, end_year: int) -> dict:
-    """
+def run_training_pipeline(
+    country_data: pd.DataFrame, 
+    target_column: str, 
+    model_name: str, 
+    end_year: int
+) -> dict:
+    r"""
     Executes the training pipeline using the Difference/Lag strategy and reconstructs absolute values.
 
     Workflow:
@@ -386,6 +398,7 @@ def run_training_pipeline(country_data: pd.DataFrame, target_column: str, model_
         - 'y_pred_test_abs': Reconstructed absolute predictions for test set.
         - 'prediction': Future prediction for the immediate next year.
     """
+
     # 1. Prepare data (remove 'country' column if it exists)
     # Target is now DIFF
     if 'country' in country_data.columns:
@@ -443,8 +456,13 @@ def run_training_pipeline(country_data: pd.DataFrame, target_column: str, model_
     }
 
 
-def make_recursive_future_prediction(model: Any, last_known_row: pd.Series, X_history: pd.DataFrame, years_ahead: int = 5) -> pd.DataFrame:
-    """
+def make_recursive_future_prediction(
+    model: Any, 
+    last_known_row: pd.Series, 
+    X_history: pd.DataFrame, 
+    years_ahead: int = 5
+) -> pd.DataFrame:
+    r"""
     Generates future predictions using a recursive autoregressive strategy.
 
     Since the model predicts the *difference* ($y_t - y_{t-1}$), this function:
@@ -476,6 +494,7 @@ def make_recursive_future_prediction(model: Any, last_known_row: pd.Series, X_hi
     exogenous_features = [c for c in X_history.columns if c not in ['year', 'lag_1']]
     
     for feat in exogenous_features:
+        # Use only needed columns and avoid warning
         hist_data = X_history[['year', feat]].tail(10).dropna()
         
         if len(hist_data) > 1: 
@@ -495,7 +514,8 @@ def make_recursive_future_prediction(model: Any, last_known_row: pd.Series, X_hi
         for feat in exogenous_features:
             projector = feature_projectors.get(feat)
             if projector:
-                next_val = projector.predict([[next_year]])[0]
+                # FIX: Pass DataFrame with feature name to avoid warning
+                next_val = projector.predict(pd.DataFrame({'year': [next_year]}))[0]
                 next_row[feat] = next_val
             else:
                 next_row[feat] = current_features[feat]
