@@ -1,0 +1,251 @@
+import pytest
+import pandas as pd
+import numpy as np
+from unittest.mock import MagicMock, patch
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression
+
+# Project imports
+from src.model.model_training import (
+    prepare_data, 
+    compute_feature_importance, 
+    make_recursive_future_prediction
+)
+
+# ==============================================================================
+# 1: prepare_data
+# CRITERION: Boundary Value Analysis (BVA)
+# RATIONALE: Validates the data split logic considering the row loss 
+# caused by Lag creation (Feature Engineering).
+# ==============================================================================
+
+class TestPrepareDataBoundaries:
+    
+    @pytest.fixture
+    def time_series_df(self):
+        # DataFrame with 10 years (2010-2019)
+        return pd.DataFrame({
+            'year': range(2010, 2020),
+            'target': range(10), # 0 to 9
+            'feat': range(10)
+        })
+
+    def test_bva_min_zero_test_years(self, time_series_df):
+        """
+        [BVA] Lower Boundary: 0 test years.
+        Expected Behavior: Total dataset loses 1 row (Lag NaN). 
+        The rest (9 rows) should all go to training.
+        """
+        X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=0)
+        
+        # Original 10 rows -> Dropna(lag) -> 9 rows
+        assert len(X_train) == 9
+        assert len(X_test) == 0
+
+    def test_bva_max_all_years_test(self, time_series_df):
+        """
+        [BVA] Upper Boundary: test_years_count > available total.
+        Behavior: The system should handle overflow by assigning everything to test 
+        (except the lost row).
+        """
+        # Requested 10 years, but only 9 are useful (due to lag)
+        X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=10)
+        
+        assert len(X_train) == 0
+        assert len(X_test) == 9 
+
+    def test_data_structure_integrity(self, time_series_df):
+        """
+        [Equivalence Class]: Verifies if feature engineering columns 
+        (lag_1) were correctly created for valid inputs.
+        """
+        X_train, _, _, _ = prepare_data(time_series_df, 'target', test_years_count=2)
+        assert 'lag_1' in X_train.columns
+        assert 'year' in X_train.columns
+        # Original target and diff should not be in X
+        assert 'target' not in X_train.columns
+        assert 'target_diff' not in X_train.columns
+
+
+# ==============================================================================
+# 2: compute_feature_importance
+# CRITERION: Cause-Effect Graph (Decision Table)
+# RATIONALE: Validates extraction logic for models inside Pipelines and fallback rules.
+# ==============================================================================
+
+class TestFeatureImportanceDecisionTable:
+    
+    @pytest.fixture
+    def sample_X(self):
+        return pd.DataFrame({'colA': [10, 20], 'colB': [30, 40]})
+
+    def test_decision_pipeline_extraction(self, sample_X):
+        """
+        Rule: IF (Model is Pipeline) AND (SHAP works) THEN (Extract final step and transform data).
+        """
+        # Create a simple real pipeline
+        pipe = Pipeline([
+            ('scaler', StandardScaler()),
+            ('model', LinearRegression())
+        ])
+        pipe.fit(sample_X, [1, 2]) # Quick fit
+
+        # Mock SHAP to avoid delay, but validate it received transformed data
+        with patch('shap.Explainer') as MockExplainer:
+            mock_shap_values = MagicMock()
+            # Return simple shap values (dimension 2: samples x features)
+            mock_shap_values.values = np.array([[0.5, 0.5], [0.5, 0.5]])
+            
+            instance = MockExplainer.return_value
+            instance.return_value = mock_shap_values
+            
+            fi = compute_feature_importance(pipe, sample_X)
+            
+            # Check if SHAP was called with the internal model (LinearRegression), not the Pipeline
+            args, _ = MockExplainer.call_args
+            assert isinstance(args[0], LinearRegression)
+            
+            assert not fi.empty
+
+    def test_decision_fallback_to_coef(self, sample_X):
+        """
+        Rule: IF (SHAP fails) AND (Model has coef_) THEN (Use absolute coef_).
+        """
+        mock_model = MagicMock()
+        mock_model.coef_ = np.array([-0.9, 0.1]) # Coefficients
+        del mock_model.feature_importances_ # Ensure it's not a tree
+
+        with patch('shap.Explainer', side_effect=Exception("SHAP died")):
+            fi = compute_feature_importance(mock_model, sample_X)
+        
+        assert fi['colA'] == 0.9 # Absolute value
+        assert fi['colB'] == 0.1
+
+    def test_decision_all_fail(self, sample_X):
+        """
+        Rule: IF (Everything fails) THEN (Return Zeros).
+        """
+        mock_model = MagicMock(spec=[]) # Empty object
+
+        with patch('shap.Explainer', side_effect=Exception("Error")):
+            fi = compute_feature_importance(mock_model, sample_X)
+        
+        assert fi['colA'] == 0.0
+        assert fi['colB'] == 0.0
+        
+    def test_shap_integration_sanity_check(self, sample_X):
+        """
+        [Integration Test]: Verifies if the real SHAP can run with the Pipeline
+        without crashing and if it returns values in a reasonable scale (not 10^23).
+        This ensures the StandardScaler fix is working effectively.
+        """
+        # 1. Create a Real Pipeline
+        pipe = Pipeline([
+            ('scaler', StandardScaler()),
+            ('model', LinearRegression())
+        ])
+        # Train with simple data
+        y = [10, 20] 
+        pipe.fit(sample_X, y)
+
+        # 2. Call the REAL function (no patch/mock on shap)
+        # This exercises the logic: pipe[-1] and pipe[:-1].transform(X)
+        fi = compute_feature_importance(pipe, sample_X)
+
+        # 3. Verifications
+        assert not fi.empty
+        # Verify values are finite
+        assert np.all(np.isfinite(fi.values))
+        assert fi.max() < 1000.0
+
+
+# ==============================================================================
+# 3: make_recursive_future_prediction
+# CRITERION: Decision Table & Equivalence Classes
+# RATIONALE: Validate exogenous feature projection logic (Regression vs Static)
+# and absolute value reconstruction.
+# ==============================================================================
+
+class TestRecursivePredictionLogic:
+
+    @pytest.fixture
+    def trained_pipeline(self):
+        # Pipeline that predicts a constant difference of +10
+        mock_model = MagicMock()
+        mock_model.predict.return_value = np.array([10.0]) # Predicts Diff = 10
+        return mock_model
+
+    def test_reconstruction_accumulated(self, trained_pipeline):
+        """
+        [Cause-Effect Graph]: Validates mathematical reconstruction.
+        Given: Last row (2020) has lag_1 = 100. Model predicts diff = +10.
+        
+        Logic:
+        1. Current Year (2020) Reconstructed = 100 (lag) + 10 (diff) = 110.
+           This 110 becomes the 'lag_1' for the next year (2021).
+        
+        2. Future Year 1 (2021): 110 (lag) + 10 (diff) = 120.
+        3. Future Year 2 (2022): 120 (lag) + 10 (diff) = 130.
+        """
+        last_row = pd.Series({'year': 2020, 'lag_1': 100.0, 'pop': 1000})
+        history = pd.DataFrame({'year': [2019, 2020], 'lag_1': [90, 100], 'pop': [1000, 1000]})
+        
+        future_df = make_recursive_future_prediction(
+            trained_pipeline, last_row, history, years_ahead=2
+        )
+        
+        assert len(future_df) == 2
+        assert future_df.iloc[0]['year'] == 2021
+        assert future_df.iloc[0]['predicted_value'] == 120.0 
+        assert future_df.iloc[1]['year'] == 2022
+        assert future_df.iloc[1]['predicted_value'] == 130.0 
+
+    def test_feature_projection_logic(self, trained_pipeline):
+        """
+        [Equivalence Class]: Sufficient History.
+        Input: History of 'pop' growing (1000 -> 1100).
+        Expected Output: 'pop' in the future should continue growing (Linear Projection), 
+        not remain static.
+        """
+        last_row = pd.Series({'year': 2020, 'lag_1': 100, 'pop': 1100})
+        
+        # History shows clear growth: 1000 -> 1100 (+100/year)
+        history = pd.DataFrame({
+            'year': [2019, 2020], 
+            'lag_1': [90, 100], 
+            'pop': [1000, 1100]
+        })
+
+        # Mock the model to ignore prediction, we only want to check features
+        trained_pipeline.predict.return_value = np.array([0]) 
+        
+        # Since the function returns only 'year' and 'predicted_value', 
+        # we cannot directly verify the 'pop' feature inside the return dataframe.
+        # This test ensures execution without errors when history is valid.
+        
+        future_df = make_recursive_future_prediction(
+            trained_pipeline, last_row, history, years_ahead=1
+        )
+        
+        assert len(future_df) == 1
+
+    def test_feature_projection_insufficient_data(self, trained_pipeline):
+        """
+        [Equivalence Class]: Insufficient History (Only 1 row).
+        Rule: If len(history) < 2, projector fails, must use fallback (static value).
+        """
+        last_row = pd.Series({'year': 2020, 'lag_1': 100, 'pop': 5000})
+        # History with only 1 row -> Impossible to draw a line
+        history = pd.DataFrame({'year': [2020], 'lag_1': [100], 'pop': [5000]})
+        
+        # Should not raise error
+        try:
+            future_df = make_recursive_future_prediction(
+                trained_pipeline, last_row, history, years_ahead=1
+            )
+        except ValueError:
+            pytest.fail("Function crashed with insufficient history (should use fallback)")
+            
+        assert len(future_df) == 1
+        assert future_df.iloc[0]['year'] == 2021

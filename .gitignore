@@ -186,3 +186,5 @@ dmypy.json
 
 # Streamlit
 .streamlit/secrets.toml
+
+*.pkl
