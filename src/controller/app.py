@@ -380,7 +380,7 @@ with tab2:
                 future_years = future_df[['year']]
                     
             else:
-                st.warning("⚠️ Modelo antigo detectado (sem feature de Lag). A previsão futura será constante.")
+                st.warning("⚠️ Outdated model (no Lag Feature). Future prediction will be constant.")
                 future_years = pd.DataFrame({'year': range(END_YEAR + 1, END_YEAR + 6)})
                 other_features = X_test.drop(columns=['year'], errors='ignore').columns
                 for feature in other_features:
@@ -395,7 +395,7 @@ with tab2:
                 np.concatenate([
                     y_train.values,
                     y_test.values,
-                    np.full(len(future_years), np.nan) # NaN para o futuro
+                    np.full(len(future_years), np.nan) 
                 ]),
                 index=combined_X.index
             )
@@ -688,10 +688,10 @@ with tab3:
                 # 1. Retrieve Historical Data
                 X_train = model_entry['X_train']
                 X_test = model_entry['X_test']
-                y_train = model_entry['y_train'] # Already absolute
-                y_test = model_entry['y_test']   # Already absolute
+                y_train = model_entry['y_train'] 
+                y_test = model_entry['y_test']   
                 
-                # 2. Retrieve Reconstructed Predictions (The Fix)
+                # 2. Retrieve Reconstructed Predictions 
                 # Fallback to direct predict if key missing (backward compatibility)
                 if 'y_pred_train_abs' in model_entry:
                     y_pred_train = model_entry['y_pred_train_abs']
