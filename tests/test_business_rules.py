@@ -49,3 +49,61 @@ class TestPrepareDataBoundaries:
         
         assert len(X_train) == 0
         assert len(X_test) == 10
+        
+        
+# ==============================================================================
+# UNIDADE 2: compute_feature_importance
+# CRITÉRIO: Tabela de Decisão (Grafo Causa-Efeito)
+# JUSTIFICATIVA: A função possui lógica de fallback complexa (Try SHAP -> Try Tree -> Try Linear -> Zeros).
+# ==============================================================================
+
+class TestFeatureImportanceDecisionTable:
+    
+    @pytest.fixture
+    def sample_X(self):
+        return pd.DataFrame({'colA': [1, 2], 'colB': [3, 4]})
+
+    def test_decision_rule_shap_fails_tree_succeeds(self, sample_X):
+        """
+        Regra: SE (SHAP falha) E (Modelo tem feature_importances_) ENTÃO (Usa feature_importances_).
+        """
+        mock_model = MagicMock()
+        # Simula atributo de Árvore
+        mock_model.feature_importances_ = np.array([0.8, 0.2])
+        # Garante que não tem coef
+        del mock_model.coef_ 
+
+        # Força erro no SHAP (simulando falha na biblioteca ou cálculo)
+        with patch('shap.Explainer', side_effect=Exception("SHAP Error")):
+            fi = compute_feature_importance(mock_model, sample_X)
+        
+        assert fi['colA'] == 0.8
+        assert fi['colB'] == 0.2
+
+    def test_decision_rule_shap_fails_linear_succeeds(self, sample_X):
+        """
+        Regra: SE (SHAP falha) E (Não tem feature_importances_) E (Tem coef_) ENTÃO (Usa coef_ absoluto).
+        """
+        mock_model = MagicMock()
+        # Simula Regressão Linear (coeficientes negativos devem virar absolutos)
+        mock_model.coef_ = np.array([-0.5, 0.5])
+        # Garante que não tem feature_importances_
+        del mock_model.feature_importances_
+
+        with patch('shap.Explainer', side_effect=Exception("SHAP Error")):
+            fi = compute_feature_importance(mock_model, sample_X)
+        
+        assert fi['colA'] == 0.5 # abs(-0.5)
+        assert fi['colB'] == 0.5
+
+    def test_decision_rule_all_fail(self, sample_X):
+        """
+        Regra: SE (Tudo falha ou atributos inexistentes) ENTÃO (Retorna Zeros).
+        """
+        mock_model = MagicMock(spec=[]) # Modelo vazio sem atributos
+
+        with patch('shap.Explainer', side_effect=Exception("SHAP Error")):
+            fi = compute_feature_importance(mock_model, sample_X)
+        
+        assert fi['colA'] == 0.0
+        assert fi['colB'] == 0.0
