@@ -133,6 +133,31 @@ class TestFeatureImportanceDecisionTable:
         
         assert fi['colA'] == 0.0
         assert fi['colB'] == 0.0
+        
+    def test_shap_integration_sanity_check(self, sample_X):
+        """
+        [Integration Test]: Verifies if the real SHAP can run with the Pipeline
+        without crashing and if it returns values in a reasonable scale (not 10^23).
+        This ensures the StandardScaler fix is working effectively.
+        """
+        # 1. Create a Real Pipeline
+        pipe = Pipeline([
+            ('scaler', StandardScaler()),
+            ('model', LinearRegression())
+        ])
+        # Train with simple data
+        y = [10, 20] 
+        pipe.fit(sample_X, y)
+
+        # 2. Call the REAL function (no patch/mock on shap)
+        # This exercises the logic: pipe[-1] and pipe[:-1].transform(X)
+        fi = compute_feature_importance(pipe, sample_X)
+
+        # 3. Verifications
+        assert not fi.empty
+        # Verify values are finite
+        assert np.all(np.isfinite(fi.values))
+        assert fi.max() < 1000.0
 
 
 # ==============================================================================
