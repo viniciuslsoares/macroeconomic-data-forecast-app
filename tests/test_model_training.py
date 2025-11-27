@@ -50,6 +50,7 @@ def test_prepare_data(sample_data):
     Tests the prepare_data function to ensure it splits data correctly.
     Verifies the types, shapes, and ratio of the output splits.
     """
+    # default test_years_count is 5
     X_train, X_test, y_train, y_test = prepare_data(
         sample_data, target_column='target')
 
@@ -65,16 +66,22 @@ def test_prepare_data(sample_data):
     assert isinstance(y_train, pd.Series)
     assert isinstance(y_test, pd.Series)
 
-    # 3. Check if the split ratio is approximately 80/20
+    # 3. Check split sizes
+    # FIX: We lose 1 row due to lag creation (dropna), so we subtract 1 from total_rows
     total_rows = len(sample_data)
-    assert len(X_train) == total_rows - 5
-    assert len(X_test) == 5
+    expected_rows_after_lag = total_rows - 1
+    expected_test_size = 5
+    
+    # Train size should be (Total - 1) - Test_Size
+    # In this sample: (10 - 1) - 5 = 4
+    assert len(X_train) == expected_rows_after_lag - expected_test_size
+    
+    # Test size is fixed by the parameter
+    assert len(X_test) == expected_test_size
 
-    # 4. Check if the number of rows is consistent
-    assert len(X_train) + len(X_test) == total_rows
-    assert len(y_train) + len(y_test) == total_rows
-
-# FIX: Added the list of model names to the parametrize decorator
+    # 4. Check consistency
+    assert len(X_train) + len(X_test) == expected_rows_after_lag
+    assert len(y_train) + len(y_test) == expected_rows_after_lag
 
 
 @pytest.mark.parametrize("model_name", MODEL_NAMES)

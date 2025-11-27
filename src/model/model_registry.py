@@ -1,5 +1,6 @@
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, Ridge 
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.svm import SVR  
 
 """
 Central Model Registry
@@ -11,11 +12,17 @@ Format:
     {default_hyperparameters_dict}
 )
 """
+
 MODEL_REGISTRY = {
     "Linear Regression": (
         "LinearRegression",
         LinearRegression,
         {}
+    ),
+    "Ridge Regression (Regularized)": (
+        "Ridge",
+        Ridge,
+        {"alpha": 1.0, "random_state": 42}
     ),
     "Random Forest": (
         "RandomForestRegressor",
@@ -26,7 +33,16 @@ MODEL_REGISTRY = {
         "GradientBoostingRegressor",
         GradientBoostingRegressor,
         {"random_state": 42}
-    )
+    ),
+    "Support Vector Regression (SVR)": (
+        "SVR",
+        SVR,
+        {
+            "kernel": "linear",  
+            "C": 100.0,       
+            "epsilon": 0.1    
+        }
+    ),
 }
 
 

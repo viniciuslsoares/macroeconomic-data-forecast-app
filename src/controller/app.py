@@ -19,13 +19,13 @@ from src.model.model_training import (
     run_training_pipeline,
     save_model,
     evaluate_loaded_model,
+    make_recursive_future_prediction,
 )
 from src.model.data_processing import fetch_world_bank_data
 from src.view.export_utils import (
     export_train_test_data,
     export_actual_vs_predicted_data,
     export_future_predictions,
-    create_csv_download_button,
 )
 from datetime import datetime
 import numpy as np
@@ -105,11 +105,11 @@ START_YEAR = 2000
 END_YEAR = 2018
 
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def load_data():
     """Fetches and preprocesses data from the World Bank. Caches the result."""
     with st.spinner(
-        "Fetching and preprocessing data from the World Bank API... This may take a moment."
+        "⏳ Fetching and preprocessing data from the World Bank API... This may take a moment."
     ):
         data = fetch_world_bank_data(
             list(COUNTRIES.values()), START_YEAR, END_YEAR, INDICATORS
@@ -295,10 +295,6 @@ with tab2:
         st.info(
             "Please click the 'Train Model & Predict' button in the sidebar to see the results."
         )
-        st.image(
-            "https://media1.tenor.com/m/y2uA8hd_3tEAAAAC/what-are-you-waiting-for-do-it.gif",
-            width=300,
-        )
     else:
         ECONOMIC_INDICATORS = {"GDP (current US$)"}
         is_economic = st.session_state["target_column"] in ECONOMIC_INDICATORS
@@ -362,18 +358,53 @@ with tab2:
                 "This chart helps to visually assess the model's performance by comparing its predictions against the actual historical data it did not see during training, and includes a 5-year forecast."
             )
 
-            # Prepare plot data using the View layer function
-            model_entry = {
-                "trained_model": st.session_state["trained_model"],
-                "X_train": st.session_state["X_train"],
-                "y_train": st.session_state["y_train"],
-                "X_test": st.session_state["X_test"],
-                "y_test": st.session_state["y_test"],
-            }
+            model = st.session_state["trained_model"]
+            X_train = st.session_state["X_train"]
+            y_train = st.session_state["y_train"]
+            X_test = st.session_state["X_test"]
+            y_test = st.session_state["y_test"]
+            
+            last_features = X_test.iloc[-1]
+            
+            X_history = pd.concat([X_train, X_test])
 
-            combined_X, combined_y_actual, combined_y_pred = prepare_plot_data(
-                model_entry, END_YEAR
+            if 'lag_1' in last_features:
+                future_df = make_recursive_future_prediction(
+                    model, 
+                    last_features,
+                    X_history, 
+                    years_ahead=5
+                )
+                
+                y_pred_future = future_df['predicted_value'].values
+                future_years = future_df[['year']]
+                    
+            else:
+                st.warning("⚠️ Outdated model (no Lag Feature). Future prediction will be constant.")
+                future_years = pd.DataFrame({'year': range(END_YEAR + 1, END_YEAR + 6)})
+                other_features = X_test.drop(columns=['year'], errors='ignore').columns
+                for feature in other_features:
+                    future_years[feature] = last_features[feature]
+                y_pred_future = model.predict(future_years)
+
+            y_pred_train = st.session_state["y_pred_train_abs"]
+            y_pred_test = st.session_state["y_pred_test_abs"]
+
+            combined_X = pd.concat([X_train, X_test, future_years], ignore_index=True)            
+            combined_y_actual = pd.Series(
+                np.concatenate([
+                    y_train.values,
+                    y_test.values,
+                    np.full(len(future_years), np.nan) 
+                ]),
+                index=combined_X.index
             )
+
+            combined_y_pred = pd.Series(
+                np.concatenate([y_pred_train, y_pred_test, y_pred_future]),
+                index=combined_X.index
+            )
+
 
             fig_pred = plot_predictions_vs_actuals(
                 combined_X,
@@ -390,26 +421,32 @@ with tab2:
                 if fi is not None and getattr(fi, 'size', 0) > 0:
                     # normalize to pandas Series if necessary
                     if isinstance(fi, pd.DataFrame):
-                        try:
-                            fi = pd.Series(fi.iloc[:, 1].values, index=fi.iloc[:, 0].values)
-                        except Exception:
-                            fi = fi.iloc[:, 0]
+                        fi = pd.Series(fi.iloc[:, 1].values, index=fi.iloc[:, 0].values)
+                    
                     st.subheader("🔍 Feature importance (model explainability)")
-                    st.caption("Mean absolute SHAP values.")
-                    fig_fi = plot_feature_importance(fi, f"Feature importance for {st.session_state.get('target_column', '')}")
-                    st.plotly_chart(fig_fi, use_container_width=True)
-                    # show table
-                    try:
-                        df_fi = fi.reset_index()
-                        df_fi.columns = ['feature', 'importance']
-                        st.dataframe(df_fi)
-                    except Exception:
-                        st.write(fi)
+                    
+                    col_toggle, _ = st.columns([0.4, 0.6])
+                    hide_lag = col_toggle.checkbox("Hide 'lag_1' (autoregressive feature)", value=True, 
+                                        help="Removes the previous year's value impact to show the contribution of other indicators.")
+                    
+                    fi_to_plot = fi.copy()
+                    
+                    if hide_lag and 'lag_1' in fi_to_plot.index:
+                        fi_to_plot = fi_to_plot.drop('lag_1')
+                    
+                    if not fi_to_plot.empty:
+                        fi_to_plot = (fi_to_plot / fi_to_plot.sum()) * 100
+                        
+                        st.caption("Relative impact of each indicator on the prediction (%).")
+                        fig_fi = plot_feature_importance(fi_to_plot, f"Drivers of {st.session_state.get('target_column', '')}")
+                        st.plotly_chart(fig_fi, use_container_width=True)
+                    else:
+                        st.info("No other features to display besides lag_1.")
+                        
                 else:
                     st.caption("No feature importance available for this model.")
             except Exception as e:
                 st.write("Could not display feature importance:", e)
-
             # Generate data for all exports upfront
             model = st.session_state["trained_model"]
             X_test = st.session_state["X_test"]
@@ -646,81 +683,120 @@ with tab3:
 
             viz_col1, viz_col2 = st.columns(2)
 
+            # Helper function to reconstruct plot data (Fixes the scale issue)
+            def prepare_comparison_data(model_entry):
+                # 1. Retrieve Historical Data
+                X_train = model_entry['X_train']
+                X_test = model_entry['X_test']
+                y_train = model_entry['y_train'] 
+                y_test = model_entry['y_test']   
+                
+                # 2. Retrieve Reconstructed Predictions 
+                # Fallback to direct predict if key missing (backward compatibility)
+                if 'y_pred_train_abs' in model_entry:
+                    y_pred_train = model_entry['y_pred_train_abs']
+                    y_pred_test = model_entry['y_pred_test_abs']
+                else:
+                    y_pred_train = model_entry['trained_model'].predict(X_train)
+                    y_pred_test = model_entry['trained_model'].predict(X_test)
+                
+                # 3. Calculate Recursive Future
+                model = model_entry['trained_model']
+                last_features = X_test.iloc[-1]
+                X_history = pd.concat([X_train, X_test])
+                
+                if 'lag_1' in last_features:
+                    future_df = make_recursive_future_prediction(
+                        model, last_features, X_history, years_ahead=5
+                    )
+                    y_pred_future = future_df['predicted_value'].values
+                    future_years = future_df[['year']]
+                else:
+                    # Fallback for old models
+                    future_years = pd.DataFrame({'year': range(END_YEAR + 1, END_YEAR + 6)})
+                    for col in X_test.columns:
+                        if col != 'year': future_years[col] = last_features[col]
+                    y_pred_future = model.predict(future_years)
+
+                # 4. Combine
+                combined_X = pd.concat([X_train, X_test, future_years], ignore_index=True)
+                
+                combined_y_actual = pd.Series(
+                    np.concatenate([y_train.values, y_test.values, np.full(len(future_years), np.nan)]),
+                    index=combined_X.index
+                )
+                
+                combined_y_pred = pd.Series(
+                    np.concatenate([y_pred_train, y_pred_test, y_pred_future]),
+                    index=combined_X.index
+                )
+                
+                return combined_X, combined_y_actual, combined_y_pred
+
             with viz_col1:
                 st.markdown(f"**Model A: {model_a['model_name']}**")
-                # Prepare data for Model A using the View layer function
-                combined_X_a, combined_y_actual_a, combined_y_pred_a = (
-                    prepare_plot_data(model_a, END_YEAR)
-                )
+                
+                # Use the helper to get corrected absolute data
+                cX_a, cYa_a, cYp_a = prepare_comparison_data(model_a)
 
                 fig_a = plot_predictions_vs_actuals(
-                    combined_X_a,
-                    combined_y_actual_a,
-                    combined_y_pred_a,
+                    cX_a, cYa_a, cYp_a,
                     f"Model A: {model_a['model_name']}",
                     model_a["target_column"],
                 )
                 st.plotly_chart(fig_a, use_container_width=True)
 
-                # Feature importance
+                # Feature importance A
                 try:
                     fi_a = model_a.get('feature_importance', None)
                     if fi_a is not None and getattr(fi_a, 'size', 0) > 0:
                         if isinstance(fi_a, pd.DataFrame):
-                            try:
-                                fi_a = pd.Series(fi_a.iloc[:, 1].values, index=fi_a.iloc[:, 0].values)
-                            except Exception:
-                                fi_a = fi_a.iloc[:, 0]
-                        st.markdown("**Feature importance (Model A)**")
-                        fig_fi_a = plot_feature_importance(fi_a, f"Feature importance - {model_a.get('model_name', '')}")
-                        st.plotly_chart(fig_fi_a, use_container_width=True)
-                        try:
-                            df_fi_a = fi_a.reset_index()
-                            df_fi_a.columns = ['feature', 'importance']
-                            st.dataframe(df_fi_a)
-                        except Exception:
-                            st.write(fi_a)
-                    else:
-                        st.caption("No feature importance available for Model A.")
+                            fi_a = pd.Series(fi_a.iloc[:, 1].values, index=fi_a.iloc[:, 0].values)
+                        
+                        # Remove Lag for clarity
+                        if 'lag_1' in fi_a.index:
+                            fi_a = fi_a.drop('lag_1')
+                        
+                        # Normalize to %
+                        if not fi_a.empty:
+                            fi_a = (fi_a / fi_a.sum()) * 100
+                            st.markdown("**Feature importance (%) - Model A**")
+                            fig_fi_a = plot_feature_importance(fi_a, "")
+                            fig_fi_a.update_layout(margin=dict(l=0, r=0, t=30, b=0), height=250)
+                            st.plotly_chart(fig_fi_a, use_container_width=True)
                 except Exception as e:
-                    st.write("Could not render feature importance for Model A:", e)
-
+                    st.caption(f"Error showing feature importance: {e}")
 
             with viz_col2:
                 st.markdown(f"**Model B: {model_b['model_name']}**")
-                # Prepare data for Model B using the View layer function
-                combined_X_b, combined_y_actual_b, combined_y_pred_b = (
-                    prepare_plot_data(model_b, END_YEAR)
-                )
+                
+                # Use the helper to get corrected absolute data
+                cX_b, cYa_b, cYp_b = prepare_comparison_data(model_b)
 
                 fig_b = plot_predictions_vs_actuals(
-                    combined_X_b,
-                    combined_y_actual_b,
-                    combined_y_pred_b,
+                    cX_b, cYa_b, cYp_b,
                     f"Model B: {model_b['model_name']}",
                     model_b["target_column"],
                 )
                 st.plotly_chart(fig_b, use_container_width=True)
 
-                # Feature importance
+                # Feature importance B
                 try:
                     fi_b = model_b.get('feature_importance', None)
                     if fi_b is not None and getattr(fi_b, 'size', 0) > 0:
                         if isinstance(fi_b, pd.DataFrame):
-                            try:
-                                fi_b = pd.Series(fi_b.iloc[:, 1].values, index=fi_b.iloc[:, 0].values)
-                            except Exception:
-                                fi_b = fi_b.iloc[:, 0]
-                        st.markdown("**Feature importance (Model B)**")
-                        fig_fi_b = plot_feature_importance(fi_b, f"Feature importance - {model_b.get('model_name', '')}")
-                        st.plotly_chart(fig_fi_b, use_container_width=True)
-                        try:
-                            df_fi_b = fi_b.reset_index()
-                            df_fi_b.columns = ['feature', 'importance']
-                            st.dataframe(df_fi_b)
-                        except Exception:
-                            st.write(fi_b)
-                    else:
-                        st.caption("No feature importance available for Model B.")
+                            fi_b = pd.Series(fi_b.iloc[:, 1].values, index=fi_b.iloc[:, 0].values)
+                        
+                        # Remove Lag for clarity
+                        if 'lag_1' in fi_b.index:
+                            fi_b = fi_b.drop('lag_1')
+                            
+                        # Normalize to %
+                        if not fi_b.empty:
+                            fi_b = (fi_b / fi_b.sum()) * 100
+                            st.markdown("**Feature importance (%) - Model B**")
+                            fig_fi_b = plot_feature_importance(fi_b, "")
+                            fig_fi_b.update_layout(margin=dict(l=0, r=0, t=30, b=0), height=250)
+                            st.plotly_chart(fig_fi_b, use_container_width=True)
                 except Exception as e:
-                    st.write("Could not render feature importance for Model B:", e)
+                    st.caption(f"Error showing feature importance: {e}")              
