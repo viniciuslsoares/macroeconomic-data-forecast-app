@@ -107,3 +107,49 @@ class TestFeatureImportanceDecisionTable:
         
         assert fi['colA'] == 0.0
         assert fi['colB'] == 0.0
+        
+
+# ==============================================================================
+# UNIDADE 3: _prepare_future_features
+# CRITÉRIO: Particionamento em Classes de Equivalência (EP)
+# JUSTIFICATIVA: Validar como o sistema preenche dados futuros baseados na existência
+# ou ausência da feature no dataset de origem.
+# ==============================================================================
+
+class TestPrepareFutureFeaturesEP:
+
+    def test_ep_valid_feature_propagation(self):
+        """
+        [Classe Válida]: A feature existe no DataFrame fonte.
+        Resultado esperado: O valor do último ano é propagado para o ano seguinte.
+        """
+        source_df = pd.DataFrame({
+            'year': [2018],
+            'gdp': [1000],
+            'pop': [500]
+        })
+        
+        future_df = _prepare_future_features(source_df, end_year=2018)
+        
+        # Verifica se criou o ano seguinte
+        assert future_df.iloc[0]['year'] == 2019
+        # Verifica se propagou os valores da última linha
+        assert future_df.iloc[0]['gdp'] == 1000 
+        assert future_df.iloc[0]['pop'] == 500
+
+    def test_ep_robustness_on_subset(self):
+        """
+        [Classe de Robustez]: Garante que a função opera corretamente mesmo com 
+        um subconjunto limitado de colunas, verificando se o loop interno 
+        identifica apenas as colunas presentes.
+        """
+        # Cria um DF com apenas uma coluna de feature além do ano
+        source_df = pd.DataFrame({'year': [2018], 'gdp': [100]})
+        
+        future_df = _prepare_future_features(source_df, end_year=2018)
+        
+        # Verifica se a saída contém apenas as colunas esperadas e propagou o valor
+        assert 'gdp' in future_df.columns
+        assert 'pop' not in future_df.columns  # Garante que não inventou colunas
+        assert future_df.iloc[0]['gdp'] == 100
+        
