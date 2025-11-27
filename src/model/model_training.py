@@ -83,7 +83,9 @@ def compute_feature_importance(model: Any, X: pd.DataFrame) -> pd.Series:
             elif hasattr(model_to_explain, "coef_"):
                 return pd.Series(np.abs(model_to_explain.coef_), index=feature_names).sort_values(ascending=False)
         except:
-            return pd.Series(0, index=feature_names)
+            pass
+            
+        return pd.Series(0, index=feature_names)
 
 def select_model(model_name) -> Any:
     """

@@ -154,12 +154,16 @@ class TestRecursivePredictionLogic:
     def test_reconstruction_accumulated(self, trained_pipeline):
         """
         [Cause-Effect Graph]: Validates mathematical reconstruction.
-        Given: Last real value = 100. Model predicts diff = +10.
-        Year 1: 100 + 10 = 110.
-        Year 2: 110 + 10 = 120.
+        Given: Last row (2020) has lag_1 = 100. Model predicts diff = +10.
+        
+        Logic:
+        1. Current Year (2020) Reconstructed = 100 (lag) + 10 (diff) = 110.
+           This 110 becomes the 'lag_1' for the next year (2021).
+        
+        2. Future Year 1 (2021): 110 (lag) + 10 (diff) = 120.
+        3. Future Year 2 (2022): 120 (lag) + 10 (diff) = 130.
         """
         last_row = pd.Series({'year': 2020, 'lag_1': 100.0, 'pop': 1000})
-        # History irrelevant for this specific test
         history = pd.DataFrame({'year': [2019, 2020], 'lag_1': [90, 100], 'pop': [1000, 1000]})
         
         future_df = make_recursive_future_prediction(
@@ -167,12 +171,10 @@ class TestRecursivePredictionLogic:
         )
         
         assert len(future_df) == 2
-        # Year 1
         assert future_df.iloc[0]['year'] == 2021
-        assert future_df.iloc[0]['predicted_value'] == 110.0
-        # Year 2 (Recursive)
+        assert future_df.iloc[0]['predicted_value'] == 120.0 
         assert future_df.iloc[1]['year'] == 2022
-        assert future_df.iloc[1]['predicted_value'] == 120.0
+        assert future_df.iloc[1]['predicted_value'] == 130.0 
 
     def test_feature_projection_logic(self, trained_pipeline):
         """
