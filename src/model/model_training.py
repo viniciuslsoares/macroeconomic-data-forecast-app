@@ -15,22 +15,20 @@ from src.model.model_registry import get_model_instance
 
 def compute_feature_importance(model: Any, X: pd.DataFrame) -> pd.Series:
     """
-    Computes and ranks feature importance scores using SHAP or model attributes.
+    Computes feature importance scores using SHAP, handling Pipelines correctly.
 
-    This function prioritizes model-agnostic interpretation via SHAP values to provide
-    consistent insights across different model types. It employs a robust fallback
-    mechanism: if SHAP calculation fails, it reverts to native model attributes
-    (such as feature_importances_ or coef_) to ensure a result is always returned.
+    This function extracts the inner estimator from a Pipeline and applies the 
+    preprocessor transformations to the data before calculating SHAP values. 
+    This prevents magnitude errors (e.g., importance scores of 10^23) caused 
+    by passing unscaled data to a model trained on scaled data.
 
     Args:
-        model: The trained machine learning model to inspect.
-        X: The input DataFrame used for calculating importance. For efficiency,
-           this data is sampled before generating SHAP values.
+        model: The trained model or Pipeline.
+        X: The input DataFrame used for calculating importance.
 
     Returns:
-        A pandas Series mapping feature names to their absolute importance scores,
-        sorted in descending order. Returns a Series of zeros if importance
-        cannot be determined.
+        A pandas Series mapping feature names to their absolute mean SHAP values,
+        sorted in descending order. Returns zeros if calculation fails.
     """
     if X is None or X.shape[0] == 0:
         return pd.Series(dtype=float)
@@ -110,21 +108,29 @@ def prepare_data(
     target_column: str,
     test_years_count: int = 5,
 ) -> Tuple:
-    """
-    Prepares the dataset for model training by separating features and target,
-    and splitting them into training and testing sets using a time-series split.
+    """ 
+    Prepares the dataset for training by applying stationarity transformations.
+
+    Instead of predicting absolute values directly, this function transforms the 
+    problem into predicting the year-over-year difference (differentiation). 
+    It creates a 'lag_1' feature (previous year's value) and a 'target_diff' 
+    target variable.
+
+    Transformation Logic:
+        y_t (target) = Value_t - Value_{t-1}
+        Feature 'lag_1' = Value_{t-1}
 
     Args:
         df: The preprocessed time-series dataset.
-        target_column: The name of the column to be used as the target variable (y).
+        target_column: The name of the column to be used as the target variable.
         test_years_count: The number of most recent years to allocate to the test set.
 
     Returns:
         A tuple containing four elements:
-        - X_train: Features for the training set.
-        - X_test: Features for the testing set.
-        - y_train: Target variable for the training set.
-        - y_test: Target variable for the testing set.
+        - X_train: Features (including 'lag_1') for the training set.
+        - X_test: Features (including 'lag_1') for the testing set.
+        - y_train: Target variable (Difference) for the training set.
+        - y_test: Target variable (Difference) for the testing set.
     """
     if target_column not in df.columns:
         raise ValueError(f"Target column '{target_column}' not found.")
@@ -155,15 +161,20 @@ def prepare_data(
 
 def train_model(model: Any, X_train: pd.DataFrame, y_train: pd.Series) -> Any:
     """
-    Trains (fits) a machine learning model on the training data.
+    Trains a machine learning model wrapped in a preprocessing pipeline.
+
+    This function automatically wraps the provided model with a StandardScaler
+    to ensure robust performance for scale-sensitive algorithms (like SVR or 
+    Linear Regression) and to handle the magnitude differences between 
+    'lag_1' (e.g., Trillions) and other features (e.g., percentages).
 
     Args:
         model: An unfitted instance of a scikit-learn model.
         X_train: The feature data for training.
-        y_train: The target data for training.
+        y_train: The target data (differences) for training.
 
     Returns:
-        The trained (fitted) model object.
+        A fitted sklearn.pipeline.Pipeline containing [StandardScaler, Model].
     """
     pipeline = make_pipeline(StandardScaler(), model)
     pipeline.fit(X_train, y_train)
@@ -250,23 +261,22 @@ def load_model(filepath: str) -> Any:
 
 def evaluate_loaded_model(model: Any, country_data: pd.DataFrame, target_column: str, end_year: int) -> dict:
     """
-    Evaluates a loaded model against existing data to generate all necessary artifacts
-    for full dashboard functionality.
-    
+    Evaluates a loaded model by reconstructing absolute values from its difference predictions.
+
+    This function ensures that a model loaded from a file (which predicts differences)
+    is correctly evaluated against absolute historical data. It performs the same
+    reconstruction logic ($Abs = Lag + Diff$) as the training pipeline to generate
+    valid metrics and plotting data.
+
     Args:
-        model: A loaded trained model.
-        country_data: DataFrame containing the country data to be analyzed.
-        target_column: Name of the column that will be the prediction target.
-        end_year: Last year present in the training data.
-        
+        model: A loaded trained model (or Pipeline).
+        country_data: DataFrame containing the country data.
+        target_column: Name of the target column.
+        end_year: Last year in the training data.
+
     Returns:
-        Dictionary containing all artifacts needed for dashboard functionality:
-        - trained_model: The loaded model
-        - metrics: Dictionary with evaluation metrics (MAE, MSE, R²)
-        - prediction: Predicted value for the next year
-        - X_train, y_train: Training data
-        - X_test, y_test: Test data
-        - target_column: Target column name (for reference)
+        Dictionary containing artifacts compatible with the dashboard (metrics, 
+        reconstructed predictions, future forecast).
     """
     # 1. Prepare data (remove 'country' column if it exists)
     if 'country' in country_data.columns:
@@ -352,28 +362,30 @@ def _prepare_future_features(features_source_df: pd.DataFrame, end_year: int) ->
 
 def run_training_pipeline(country_data: pd.DataFrame, target_column: str, model_name: str, end_year: int) -> dict:
     """
-    Executes the complete training, evaluation, and prediction pipeline.
+    Executes the training pipeline using the Difference/Lag strategy and reconstructs absolute values.
 
-    This function orchestrates the entire ML workflow, from data preparation
-    to final prediction, encapsulating all ML business logic.
+    Workflow:
+    1. Prepares data by calculating differences and lags.
+    2. Trains the model to predict the difference.
+    3. RECONSTRUCTION: Calculates absolute predictions for Train/Test sets 
+       by summing the predicted difference with the actual Lag value:
+       $\hat{y}_{abs} = Lag + \hat{y}_{diff}$
+    4. Generates recursive future predictions.
+    5. Computes feature importance using the full pipeline.
 
     Args:
-        country_data: DataFrame containing the country data to be analyzed.
-        target_column: Name of the column that will be the prediction target.
-        model_name: Display name of the model to be used (e.g., "Linear Regression").
-        end_year: Last year present in the training data.
+        country_data: Raw DataFrame for a specific country.
+        target_column: The name of the target variable.
+        model_name: The name of the model to instantiate.
+        end_year: The split year (metadata).
 
     Returns:
-        Dictionary containing all artifacts generated by the pipeline:
-        - trained_model: The trained model
-        - metrics: Dictionary with evaluation metrics (MAE, MSE, R²)
-        - prediction: Predicted value for the next year
-        - X_train, y_train: Training data
-        - X_test, y_test: Test data
-        - target_column: Target column name (for reference)
-        - feature_importance: The feature importance computed by SHAP (or fallback case)
+        Dictionary containing artifacts for the frontend, including:
+        - 'metrics': Calculated on ABSOLUTE values (MAE, MSE, R2).
+        - 'y_pred_train_abs': Reconstructed absolute predictions for training set.
+        - 'y_pred_test_abs': Reconstructed absolute predictions for test set.
+        - 'prediction': Future prediction for the immediate next year.
     """
-
     # 1. Prepare data (remove 'country' column if it exists)
     # Target is now DIFF
     if 'country' in country_data.columns:
@@ -433,7 +445,23 @@ def run_training_pipeline(country_data: pd.DataFrame, target_column: str, model_
 
 def make_recursive_future_prediction(model: Any, last_known_row: pd.Series, X_history: pd.DataFrame, years_ahead: int = 5) -> pd.DataFrame:
     """
-    Solução 1 (Reconstrução) + Solução 2 (Projeção de Features).
+    Generates future predictions using a recursive autoregressive strategy.
+
+    Since the model predicts the *difference* ($y_t - y_{t-1}$), this function:
+    1. Predicts the difference for year $t+1$.
+    2. Reconstructs the absolute value: $Abs_{t+1} = Abs_t + PredDiff$.
+    3. Updates the 'lag_1' feature for the next iteration using the calculated $Abs_{t+1}$.
+    4. Projects exogenous features (e.g., Population) using linear trends derived 
+       from X_history to avoid static 'flatline' inputs.
+
+    Args:
+        model: The trained pipeline (predicting differences).
+        last_known_row: The last row of data from the test set (context).
+        X_history: Historical feature data used to train trend projectors for exogenous variables.
+        years_ahead: Number of years to forecast (default: 5).
+
+    Returns:
+        A DataFrame containing 'year' and 'predicted_value' (Absolute) for the forecast horizon.
     """
     future_predictions = []
     
