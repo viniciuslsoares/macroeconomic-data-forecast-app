@@ -9,7 +9,91 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import sys
 sys.path.append(".")
 from src.model.model_registry import get_model_instance
+import shap
 
+def compute_feature_importance(model: Any, X: pd.DataFrame) -> pd.Series:
+    """
+    Computes and ranks feature importance scores using SHAP or model attributes.
+
+    This function prioritizes model-agnostic interpretation via SHAP values to provide
+    consistent insights across different model types. It employs a robust fallback
+    mechanism: if SHAP calculation fails, it reverts to native model attributes
+    (such as feature_importances_ or coef_) to ensure a result is always returned.
+
+    Args:
+        model: The trained machine learning model to inspect.
+        X: The input DataFrame used for calculating importance. For efficiency,
+           this data is sampled before generating SHAP values.
+
+    Returns:
+        A pandas Series mapping feature names to their absolute importance scores,
+        sorted in descending order. Returns a Series of zeros if importance
+        cannot be determined.
+    """
+    if X is None or X.shape[0] == 0:
+        return pd.Series(dtype=float)
+
+    feature_names = list(X.columns)
+    # try SHAP first
+    try:
+        # sample for speed/stability
+        sample = X if len(X) <= 200 else X.sample(200, random_state=0)
+        # Use shap.Explainer
+        explainer = shap.Explainer(model, sample, feature_names=feature_names)
+        shap_values = explainer(sample)
+        vals = shap_values.values  # could be ndarray or list/tuple
+        arr = None
+        if isinstance(vals, (list, tuple)):
+            # shap can return list for multi-output; try to combine
+            try:
+                arr = np.array(vals)
+                # arr may be (n_outputs, n_samples, n_features) or (n_samples, n_features)
+            except Exception:
+                arr = None
+        else:
+            arr = np.array(vals)
+
+        # Normalize array shape to (n_samples, n_features)
+        if arr is None:
+            # fallback if shapes are unexpected
+            raise RuntimeError("Unexpected SHAP output shape.")
+        if arr.ndim == 3:
+            # (n_samples, n_outputs, n_features) or (n_outputs, n_samples, n_features)
+            # try to detect axis order:
+            if arr.shape[0] == sample.shape[0]:
+                # (n_samples, n_outputs, n_features) -> average over outputs
+                arr = np.mean(np.abs(arr), axis=1)
+            else:
+                # (n_outputs, n_samples, n_features) -> average over outputs then samples
+                arr = np.mean(np.abs(arr), axis=0)
+        elif arr.ndim == 2:
+            arr = np.abs(arr)
+        else:
+            # unexpected
+            arr = np.abs(arr).reshape(sample.shape[0], -1)
+
+        mean_abs = np.mean(arr, axis=0)
+        fi = pd.Series(mean_abs, index=sample.columns)
+        # align with X.columns ordering (if sample was a copy)
+        fi = fi.reindex(feature_names).fillna(0)
+        return fi.sort_values(ascending=False)
+    except Exception:
+        # fallback strategies
+        try:
+            if hasattr(model, "feature_importances_"):
+                vals = np.array(model.feature_importances_, dtype=float)
+                fi = pd.Series(np.abs(vals), index=feature_names)
+                return fi.sort_values(ascending=False)
+            elif hasattr(model, "coef_"):
+                coef = np.array(model.coef_, dtype=float)
+                if coef.ndim > 1:
+                    coef = np.mean(coef, axis=0)
+                fi = pd.Series(np.abs(coef), index=feature_names)
+                return fi.sort_values(ascending=False)
+        except Exception:
+            pass
+        # last-resort: zeros
+        return pd.Series(data=np.zeros(len(feature_names)), index=feature_names)
 
 def select_model(model_name) -> Any:
     """
@@ -276,6 +360,7 @@ def run_training_pipeline(country_data: pd.DataFrame, target_column: str, model_
         - X_train, y_train: Training data
         - X_test, y_test: Test data
         - target_column: Target column name (for reference)
+        - feature_importance: The feature importance computed by SHAP (or fallback case)
     """
 
     # 1. Prepare data (remove 'country' column if it exists)
@@ -303,7 +388,13 @@ def run_training_pipeline(country_data: pd.DataFrame, target_column: str, model_
     # 5. Make Prediction
     prediction = make_prediction(model, next_year_features)
 
-    # 6. Return all artifacts
+    # 6. Compute feature importance
+    try:
+        feature_importance = compute_feature_importance(model, X_train)
+    except Exception:
+        feature_importance = pd.Series(dtype=float)
+
+    # 7. Return all artifacts
     return {
         "trained_model": model,
         "metrics": metrics,
@@ -312,5 +403,6 @@ def run_training_pipeline(country_data: pd.DataFrame, target_column: str, model_
         "y_train": y_train,
         "X_test": X_test,
         "y_test": y_test,
-        "target_column": target_column
+        "target_column": target_column,
+        "feature_importance": feature_importance
     }

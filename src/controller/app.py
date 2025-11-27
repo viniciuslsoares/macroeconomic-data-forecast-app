@@ -13,6 +13,7 @@ from src.view.visualization import (
     plot_indicator_trend,
     plot_predictions_vs_actuals,
     prepare_plot_data,
+    plot_feature_importance
 )
 from src.model.model_training import (
     run_training_pipeline,
@@ -382,6 +383,32 @@ with tab2:
                 st.session_state["target_column"],
             )
             st.plotly_chart(fig_pred, use_container_width=True)
+            
+            # Feature importance
+            try:
+                fi = st.session_state.get('feature_importance', None)
+                if fi is not None and getattr(fi, 'size', 0) > 0:
+                    # normalize to pandas Series if necessary
+                    if isinstance(fi, pd.DataFrame):
+                        try:
+                            fi = pd.Series(fi.iloc[:, 1].values, index=fi.iloc[:, 0].values)
+                        except Exception:
+                            fi = fi.iloc[:, 0]
+                    st.subheader("🔍 Feature importance (model explainability)")
+                    st.caption("Mean absolute SHAP values.")
+                    fig_fi = plot_feature_importance(fi, f"Feature importance for {st.session_state.get('target_column', '')}")
+                    st.plotly_chart(fig_fi, use_container_width=True)
+                    # show table
+                    try:
+                        df_fi = fi.reset_index()
+                        df_fi.columns = ['feature', 'importance']
+                        st.dataframe(df_fi)
+                    except Exception:
+                        st.write(fi)
+                else:
+                    st.caption("No feature importance available for this model.")
+            except Exception as e:
+                st.write("Could not display feature importance:", e)
 
             # Generate data for all exports upfront
             model = st.session_state["trained_model"]
@@ -635,6 +662,30 @@ with tab3:
                 )
                 st.plotly_chart(fig_a, use_container_width=True)
 
+                # Feature importance
+                try:
+                    fi_a = model_a.get('feature_importance', None)
+                    if fi_a is not None and getattr(fi_a, 'size', 0) > 0:
+                        if isinstance(fi_a, pd.DataFrame):
+                            try:
+                                fi_a = pd.Series(fi_a.iloc[:, 1].values, index=fi_a.iloc[:, 0].values)
+                            except Exception:
+                                fi_a = fi_a.iloc[:, 0]
+                        st.markdown("**Feature importance (Model A)**")
+                        fig_fi_a = plot_feature_importance(fi_a, f"Feature importance - {model_a.get('model_name', '')}")
+                        st.plotly_chart(fig_fi_a, use_container_width=True)
+                        try:
+                            df_fi_a = fi_a.reset_index()
+                            df_fi_a.columns = ['feature', 'importance']
+                            st.dataframe(df_fi_a)
+                        except Exception:
+                            st.write(fi_a)
+                    else:
+                        st.caption("No feature importance available for Model A.")
+                except Exception as e:
+                    st.write("Could not render feature importance for Model A:", e)
+
+
             with viz_col2:
                 st.markdown(f"**Model B: {model_b['model_name']}**")
                 # Prepare data for Model B using the View layer function
@@ -650,3 +701,26 @@ with tab3:
                     model_b["target_column"],
                 )
                 st.plotly_chart(fig_b, use_container_width=True)
+
+                # Feature importance
+                try:
+                    fi_b = model_b.get('feature_importance', None)
+                    if fi_b is not None and getattr(fi_b, 'size', 0) > 0:
+                        if isinstance(fi_b, pd.DataFrame):
+                            try:
+                                fi_b = pd.Series(fi_b.iloc[:, 1].values, index=fi_b.iloc[:, 0].values)
+                            except Exception:
+                                fi_b = fi_b.iloc[:, 0]
+                        st.markdown("**Feature importance (Model B)**")
+                        fig_fi_b = plot_feature_importance(fi_b, f"Feature importance - {model_b.get('model_name', '')}")
+                        st.plotly_chart(fig_fi_b, use_container_width=True)
+                        try:
+                            df_fi_b = fi_b.reset_index()
+                            df_fi_b.columns = ['feature', 'importance']
+                            st.dataframe(df_fi_b)
+                        except Exception:
+                            st.write(fi_b)
+                    else:
+                        st.caption("No feature importance available for Model B.")
+                except Exception as e:
+                    st.write("Could not render feature importance for Model B:", e)
