@@ -14,46 +14,51 @@ from src.model.model_training import (
 )
 
 # ==============================================================================
-# 1: prepare_data
-# CRITERION: Boundary Value Analysis (BVA)
-# RATIONALE: Validates the data split logic considering the row loss 
-# caused by Lag creation (Feature Engineering).
+# UNIT 1: prepare_data
+# CRITERIA: 
+#   1. Boundary Value Analysis (BVA): 4 cases (Min, Min+1, Max, Overflow).
+#   2. Equivalence Partitioning (EP): 2 classes (Valid Input, Invalid Input).
+# RATIONALE: Validates data splitting logic considering the row loss from Lag creation.
 # ==============================================================================
 
-class TestPrepareDataBoundaries:
+class TestPrepareData:
     
     @pytest.fixture
     def time_series_df(self):
-        # DataFrame with 10 years (2010-2019)
+        # DataFrame with 10 rows (2010-2019).
+        # NOTE: Creating 'lag_1' inside the function will drop the first row (2010).
+        # Effective available rows = 9.
         return pd.DataFrame({
             'year': range(2010, 2020),
-            'target': range(10), # 0 to 9
+            'target': range(10),
             'feat': range(10)
         })
 
-    def test_bva_min_zero_test_years(self, time_series_df):
-        """
-        [BVA] Lower Boundary: 0 test years.
-        Expected Behavior: Total dataset loses 1 row (Lag NaN). 
-        The rest (9 rows) should all go to training.
-        """
+    # --- Boundary Value Analysis (BVA) ---
+
+    def test_bva_min_zero(self, time_series_df):
+        """[BVA] Min Value: 0 test years. Result: 100% Train."""
         X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=0)
-        
-        # Original 10 rows -> Dropna(lag) -> 9 rows
-        assert len(X_train) == 9
+        assert len(X_train) == 9 # 10 - 1 (lag)
         assert len(X_test) == 0
 
-    def test_bva_max_all_years_test(self, time_series_df):
-        """
-        [BVA] Upper Boundary: test_years_count > available total.
-        Behavior: The system should handle overflow by assigning everything to test 
-        (except the lost row).
-        """
-        # Requested 10 years, but only 9 are useful (due to lag)
-        X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=10)
-        
+    def test_bva_min_plus_one(self, time_series_df):
+        """[BVA] Min + 1: 1 test year. Result: Split N-1 Train, 1 Test."""
+        X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=1)
+        assert len(X_train) == 8 # 9 - 1
+        assert len(X_test) == 1
+
+    def test_bva_max_exact(self, time_series_df):
+        """[BVA] Max Value: test_years == available rows (9). Result: 0 Train, 100% Test."""
+        X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=9)
         assert len(X_train) == 0
-        assert len(X_test) == 9 
+        assert len(X_test) == 9
+
+    def test_bva_overflow(self, time_series_df):
+        """[BVA] Overflow: test_years > available rows. Result: 0 Train, 100% Test (Clamped)."""
+        X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=15)
+        assert len(X_train) == 0
+        assert len(X_test) == 9
 
     def test_data_structure_integrity(self, time_series_df):
         """
