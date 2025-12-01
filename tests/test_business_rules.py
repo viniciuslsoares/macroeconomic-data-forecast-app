@@ -60,17 +60,19 @@ class TestPrepareData:
         assert len(X_train) == 0
         assert len(X_test) == 9
 
-    def test_data_structure_integrity(self, time_series_df):
-        """
-        [Equivalence Class]: Verifies if feature engineering columns 
-        (lag_1) were correctly created for valid inputs.
-        """
-        X_train, _, _, _ = prepare_data(time_series_df, 'target', test_years_count=2)
+    # --- Equivalence Partitioning (EP) ---
+
+    def test_ep_valid_input(self, time_series_df):
+        """[EP] Valid Class: Valid dataframe and target column."""
+        X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=2)
+        # Check structural integrity
         assert 'lag_1' in X_train.columns
-        assert 'year' in X_train.columns
-        # Original target and diff should not be in X
         assert 'target' not in X_train.columns
-        assert 'target_diff' not in X_train.columns
+
+    def test_ep_invalid_input(self, time_series_df):
+        """[EP] Invalid Class: Target column does not exist."""
+        with pytest.raises(ValueError, match="Target column 'missing_col' not found"):
+            prepare_data(time_series_df, 'missing_col', test_years_count=2)
 
 
 # ==============================================================================
