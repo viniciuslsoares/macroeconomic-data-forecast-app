@@ -199,9 +199,12 @@ class TestRecursivePredictionLogic:
     def test_reconstruction_logic(self, trained_pipeline):
         """
         [Calculation Check]: Validates Abs = Lag + Diff logic.
-        Row 0 (2020): Lag=100. Diff=+10 -> Res=110. (Becomes Lag for 2021)
-        Row 1 (2021): Lag=110. Diff=+10 -> Res=120. (Becomes Lag for 2022)
-        Prediction for 2021 = 120, for 2022 = 130.
+        Calculation flow:
+        1. Start with Lag=100 (from 2020).
+        2. Initial calculation: Lag=100, Diff=+10 → Result=110 (becomes Lag for 2021).
+        3. Year 2021: Lag=110, Diff=+10 → Result=120 (saved as prediction for 2021, becomes Lag for 2022).
+        4. Year 2022: Lag=120, Diff=+10 → Result=130 (saved as prediction for 2022).
+        Thus, prediction for 2021 = 120, for 2022 = 130.
         """
         last_row = pd.Series({'year': 2020, 'lag_1': 100.0, 'pop': 1000})
         history = pd.DataFrame({'year': [2020], 'lag_1': [100], 'pop': [1000]})
