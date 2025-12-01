@@ -136,7 +136,7 @@ class TestFeatureImportanceDecisionTable:
         """[Rule 3] SHAP=No, Tree=Yes -> Uses feature_importances_."""
         mock_model = MagicMock()
         mock_model.feature_importances_ = np.array([0.8, 0.2])
-        # Make sure it's not a pipeline
+        
         
         with patch('shap.Explainer', side_effect=Exception("SHAP Error")):
             fi = compute_feature_importance(mock_model, sample_X)
