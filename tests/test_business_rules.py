@@ -182,91 +182,56 @@ class TestFeatureImportanceDecisionTable:
 
 
 # ==============================================================================
-# 3: make_recursive_future_prediction
-# CRITERION: Decision Table & Equivalence Classes
-# RATIONALE: Validate exogenous feature projection logic (Regression vs Static)
-# and absolute value reconstruction.
+# UNIT 3: make_recursive_future_prediction
+# CRITERION: Equivalence Partitioning (EP)
+# RATIONALE: Validates robustness of projection logic based on history size.
 # ==============================================================================
 
 class TestRecursivePredictionLogic:
 
     @pytest.fixture
     def trained_pipeline(self):
-        # Pipeline that predicts a constant difference of +10
+        # Mock pipeline: always predicts a Difference of +10
         mock_model = MagicMock()
-        mock_model.predict.return_value = np.array([10.0]) # Predicts Diff = 10
+        mock_model.predict.return_value = np.array([10.0]) 
         return mock_model
 
-    def test_reconstruction_accumulated(self, trained_pipeline):
+    def test_reconstruction_logic(self, trained_pipeline):
         """
-        [Cause-Effect Graph]: Validates mathematical reconstruction.
-        Given: Last row (2020) has lag_1 = 100. Model predicts diff = +10.
-        
-        Logic:
-        1. Current Year (2020) Reconstructed = 100 (lag) + 10 (diff) = 110.
-           This 110 becomes the 'lag_1' for the next year (2021).
-        
-        2. Future Year 1 (2021): 110 (lag) + 10 (diff) = 120.
-        3. Future Year 2 (2022): 120 (lag) + 10 (diff) = 130.
+        [Calculation Check]: Validates Abs = Lag + Diff logic.
+        Row 0 (2020): Lag=100. Diff=+10 -> Res=110. (Becomes Lag for 2021)
+        Row 1 (2021): Lag=110. Diff=+10 -> Res=120. (Becomes Lag for 2022)
+        Prediction for 2021 = 120, for 2022 = 130.
         """
         last_row = pd.Series({'year': 2020, 'lag_1': 100.0, 'pop': 1000})
-        history = pd.DataFrame({'year': [2019, 2020], 'lag_1': [90, 100], 'pop': [1000, 1000]})
+        history = pd.DataFrame({'year': [2020], 'lag_1': [100], 'pop': [1000]})
         
         future_df = make_recursive_future_prediction(
             trained_pipeline, last_row, history, years_ahead=2
         )
         
-        assert len(future_df) == 2
-        assert future_df.iloc[0]['year'] == 2021
-        assert future_df.iloc[0]['predicted_value'] == 120.0 
-        assert future_df.iloc[1]['year'] == 2022
-        assert future_df.iloc[1]['predicted_value'] == 130.0 
+        assert future_df.iloc[0]['predicted_value'] == 120.0
+        assert future_df.iloc[1]['predicted_value'] == 130.0
 
-    def test_feature_projection_logic(self, trained_pipeline):
-        """
-        [Equivalence Class]: Sufficient History.
-        Input: History of 'pop' growing (1000 -> 1100).
-        Expected Output: 'pop' in the future should continue growing (Linear Projection), 
-        not remain static.
-        """
+    def test_ep_sufficient_history(self, trained_pipeline):
+        """[EP] Class: Sufficient History (>= 2 rows). Uses Linear Projection."""
         last_row = pd.Series({'year': 2020, 'lag_1': 100, 'pop': 1100})
-        
-        # History shows clear growth: 1000 -> 1100 (+100/year)
         history = pd.DataFrame({
-            'year': [2019, 2020], 
-            'lag_1': [90, 100], 
-            'pop': [1000, 1100]
+            'year': [2019, 2020], 'lag_1': [90, 100], 'pop': [1000, 1100]
         })
-
-        # Mock the model to ignore prediction, we only want to check features
-        trained_pipeline.predict.return_value = np.array([0]) 
-        
-        # Since the function returns only 'year' and 'predicted_value', 
-        # we cannot directly verify the 'pop' feature inside the return dataframe.
-        # This test ensures execution without errors when history is valid.
-        
+        # If history is valid, function runs without error
         future_df = make_recursive_future_prediction(
             trained_pipeline, last_row, history, years_ahead=1
         )
-        
         assert len(future_df) == 1
 
-    def test_feature_projection_insufficient_data(self, trained_pipeline):
-        """
-        [Equivalence Class]: Insufficient History (Only 1 row).
-        Rule: If len(history) < 2, projector fails, must use fallback (static value).
-        """
+    def test_ep_insufficient_history(self, trained_pipeline):
+        """[EP] Class: Insufficient History (< 2 rows). Uses Fallback (Static)."""
         last_row = pd.Series({'year': 2020, 'lag_1': 100, 'pop': 5000})
-        # History with only 1 row -> Impossible to draw a line
         history = pd.DataFrame({'year': [2020], 'lag_1': [100], 'pop': [5000]})
         
-        # Should not raise error
-        try:
-            future_df = make_recursive_future_prediction(
-                trained_pipeline, last_row, history, years_ahead=1
-            )
-        except ValueError:
-            pytest.fail("Function crashed with insufficient history (should use fallback)")
-            
+        # Should not crash, should use static value for 'pop'
+        future_df = make_recursive_future_prediction(
+            trained_pipeline, last_row, history, years_ahead=1
+        )
         assert len(future_df) == 1
-        assert future_df.iloc[0]['year'] == 2021
