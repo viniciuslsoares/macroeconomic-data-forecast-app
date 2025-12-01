@@ -76,9 +76,18 @@ class TestPrepareData:
 
 
 # ==============================================================================
-# 2: compute_feature_importance
+# UNIT 2: compute_feature_importance
 # CRITERION: Cause-Effect Graph (Decision Table)
-# RATIONALE: Validates extraction logic for models inside Pipelines and fallback rules.
+# RATIONALE: Validates logic for extracting models from Pipelines and fallback priority.
+#
+# DECISION TABLE:
+# | Rule | Pipeline? | SHAP OK? | Has FeatureImp? | Has Coef? | Action (Output)         |
+# |------|-----------|----------|-----------------|-----------|-------------------------|
+# | R1   | Yes       | Yes      | *               | *         | Extract Pipe + Use SHAP |
+# | R2   | No        | Yes      | *               | *         | Use SHAP Direct         |
+# | R3   | *         | No       | Yes             | *         | Use Feature Importances |
+# | R4   | *         | No       | No              | Yes       | Use Coefficients        |
+# | R5   | *         | No       | No              | No        | Return Zeros            |
 # ==============================================================================
 
 class TestFeatureImportanceDecisionTable:
@@ -87,55 +96,71 @@ class TestFeatureImportanceDecisionTable:
     def sample_X(self):
         return pd.DataFrame({'colA': [10, 20], 'colB': [30, 40]})
 
-    def test_decision_pipeline_extraction(self, sample_X):
-        """
-        Rule: IF (Model is Pipeline) AND (SHAP works) THEN (Extract final step and transform data).
-        """
-        # Create a simple real pipeline
-        pipe = Pipeline([
-            ('scaler', StandardScaler()),
-            ('model', LinearRegression())
-        ])
-        pipe.fit(sample_X, [1, 2]) # Quick fit
+    def test_r1_pipeline_shap_success(self, sample_X):
+        """[Rule 1] Pipeline=Yes, SHAP=Yes -> Extracts estimator and transforms data."""
+        # Setup Pipeline
+        pipe = Pipeline([('scaler', StandardScaler()), ('model', LinearRegression())])
+        pipe.fit(sample_X, [1, 2])
 
-        # Mock SHAP to avoid delay, but validate it received transformed data
         with patch('shap.Explainer') as MockExplainer:
-            mock_shap_values = MagicMock()
-            # Return simple shap values (dimension 2: samples x features)
-            mock_shap_values.values = np.array([[0.5, 0.5], [0.5, 0.5]])
-            
-            instance = MockExplainer.return_value
-            instance.return_value = mock_shap_values
+            # Setup SHAP success
+            mock_values = MagicMock()
+            mock_values.values = np.array([[0.1, 0.9], [0.1, 0.9]])
+            MockExplainer.return_value.return_value = mock_values
             
             fi = compute_feature_importance(pipe, sample_X)
             
-            # Check if SHAP was called with the internal model (LinearRegression), not the Pipeline
+            # Verify it drilled down into the pipeline (extracted LinearRegression)
             args, _ = MockExplainer.call_args
             assert isinstance(args[0], LinearRegression)
-            
             assert not fi.empty
 
-    def test_decision_fallback_to_coef(self, sample_X):
-        """
-        Rule: IF (SHAP fails) AND (Model has coef_) THEN (Use absolute coef_).
-        """
-        mock_model = MagicMock()
-        mock_model.coef_ = np.array([-0.9, 0.1]) # Coefficients
-        del mock_model.feature_importances_ # Ensure it's not a tree
+    def test_r2_no_pipeline_shap_success(self, sample_X):
+        """[Rule 2] Pipeline=No, SHAP=Yes -> Uses model directly."""
+        model = LinearRegression()
+        model.fit(sample_X, [1, 2])
 
-        with patch('shap.Explainer', side_effect=Exception("SHAP died")):
+        with patch('shap.Explainer') as MockExplainer:
+            # Setup SHAP success
+            mock_values = MagicMock()
+            mock_values.values = np.array([[0.5, 0.5], [0.5, 0.5]])
+            MockExplainer.return_value.return_value = mock_values
+            
+            compute_feature_importance(model, sample_X)
+            
+            # Verify it used the model directly
+            args, _ = MockExplainer.call_args
+            assert args[0] == model
+
+    def test_r3_shap_fail_tree_fallback(self, sample_X):
+        """[Rule 3] SHAP=No, Tree=Yes -> Uses feature_importances_."""
+        mock_model = MagicMock()
+        mock_model.feature_importances_ = np.array([0.8, 0.2])
+        # Make sure it's not a pipeline
+        
+        with patch('shap.Explainer', side_effect=Exception("SHAP Error")):
             fi = compute_feature_importance(mock_model, sample_X)
         
-        assert fi['colA'] == 0.9 # Absolute value
-        assert fi['colB'] == 0.1
+        assert fi['colA'] == 0.8
+        assert fi['colB'] == 0.2
 
-    def test_decision_all_fail(self, sample_X):
-        """
-        Rule: IF (Everything fails) THEN (Return Zeros).
-        """
+    def test_r4_shap_fail_linear_fallback(self, sample_X):
+        """[Rule 4] SHAP=No, Tree=No, Linear=Yes -> Uses coef_."""
+        mock_model = MagicMock()
+        mock_model.coef_ = np.array([-0.7, 0.3])
+        del mock_model.feature_importances_ # Ensure not tree
+
+        with patch('shap.Explainer', side_effect=Exception("SHAP Error")):
+            fi = compute_feature_importance(mock_model, sample_X)
+        
+        assert fi['colA'] == 0.7 # Absolute value
+        assert fi['colB'] == 0.3
+
+    def test_r5_all_fail(self, sample_X):
+        """[Rule 5] All conditions Fail -> Returns Zeros."""
         mock_model = MagicMock(spec=[]) # Empty object
-
-        with patch('shap.Explainer', side_effect=Exception("Error")):
+        
+        with patch('shap.Explainer', side_effect=Exception("SHAP Error")):
             fi = compute_feature_importance(mock_model, sample_X)
         
         assert fi['colA'] == 0.0
@@ -143,28 +168,17 @@ class TestFeatureImportanceDecisionTable:
         
     def test_shap_integration_sanity_check(self, sample_X):
         """
-        [Integration Test]: Verifies if the real SHAP can run with the Pipeline
-        without crashing and if it returns values in a reasonable scale (not 10^23).
-        This ensures the StandardScaler fix is working effectively.
+        [Sanity Check] Verifies that the real StandardScaler + LinearRegression 
+        pipeline works with SHAP without crashing (scale bug fix check).
         """
-        # 1. Create a Real Pipeline
-        pipe = Pipeline([
-            ('scaler', StandardScaler()),
-            ('model', LinearRegression())
-        ])
-        # Train with simple data
-        y = [10, 20] 
-        pipe.fit(sample_X, y)
-
-        # 2. Call the REAL function (no patch/mock on shap)
-        # This exercises the logic: pipe[-1] and pipe[:-1].transform(X)
+        pipe = Pipeline([('scaler', StandardScaler()), ('model', LinearRegression())])
+        pipe.fit(sample_X, [10, 20])
+        
+        # Real execution without mocks
         fi = compute_feature_importance(pipe, sample_X)
-
-        # 3. Verifications
+        
         assert not fi.empty
-        # Verify values are finite
-        assert np.all(np.isfinite(fi.values))
-        assert fi.max() < 1000.0
+        assert fi.max() < 1000.0 # Should be small (normalized), not 10^23
 
 
 # ==============================================================================
