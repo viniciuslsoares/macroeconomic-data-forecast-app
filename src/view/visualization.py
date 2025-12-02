@@ -1,190 +1,125 @@
 import pandas as pd
-import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from typing import Dict, Tuple, Any
-
 
 def plot_indicator_trend(df: pd.DataFrame, indicator: str, title: str) -> go.Figure:
     """
     Generates a line chart for a given indicator over time.
-
-    Args:
-        df (pd.DataFrame): The data for a single country.
-        indicator (str): The indicator to plot.
-        title (str): The title for the plot.
-
-    Returns:
-        go.Figure: A Plotly figure object.
     """
-    fig = px.line(df, x="year", y=indicator, title=title, markers=True)
-    fig.update_layout(xaxis_title="Year",
-                      yaxis_title=indicator, hovermode="x unified")
+    # Garante ordenação por ano
+    df_sorted = df.sort_values(by="year")
+    
+    fig = px.line(df_sorted, x="year", y=indicator, title=title, markers=True)
+    fig.update_layout(
+        xaxis_title="Year",
+        yaxis_title=indicator, 
+        hovermode="x unified",
+        template="plotly_dark"
+    )
     return fig
 
 
 def plot_predictions_vs_actuals(
-    X_test: pd.DataFrame, y_test: pd.Series, y_pred: pd.Series, title: str, target_column: str
+    combined_X: pd.DataFrame, 
+    combined_y_actual: pd.Series, 
+    combined_y_pred: pd.Series, 
+    title: str, 
+    target_column: str
 ) -> go.Figure:
     """
     Generates a plot comparing actual vs. predicted values.
-
-    Args:
-        X_test (pd.DataFrame): The feature data for testing, containing the 'year' column.
-        y_test (pd.Series): The actual target values from the test set.
-        y_pred (pd.Series): The predicted target values.
-        title (str): The title for the plot.
-        target_column (str): The name of the target column.
-
-    Returns:
-        go.Figure: A Plotly figure object.
+    Accepts combined dataframes (Train + Test + Future).
     """
-    results_df = pd.DataFrame(
-        {
-            "Year": X_test['year'],
-            "Actual": y_test.values,
-            "Predicted": y_pred.values,
-        }
-    )
-    results_df = results_df.sort_values(by="Year")
+    results_df = pd.DataFrame({
+        "Year": combined_X['year'],
+        "Actual": combined_y_actual.values,
+        "Predicted": combined_y_pred.values,
+    }).sort_values(by="Year")
 
     fig = go.Figure()
+    
+    # Real data (blue)
     fig.add_trace(
         go.Scatter(
             x=results_df["Year"],
             y=results_df["Actual"],
             mode="lines+markers",
-            name="Actual",
-            line=dict(color="blue"),
+            name="Actual Data",
+            line=dict(color="#2E86C1", width=3),
+            marker=dict(size=8)
         )
     )
+    
+    # Predicted line (red)
     fig.add_trace(
         go.Scatter(
             x=results_df["Year"],
             y=results_df["Predicted"],
             mode="lines+markers",
-            name="Predicted",
-            line=dict(color="red", dash="dash"),
+            name="Model Prediction",
+            line=dict(color="#E74C3C", dash="dash", width=3),
+            marker=dict(size=8, symbol="diamond")
         )
     )
+
+    future_start_idx = results_df["Actual"].isna().idxmax() if results_df["Actual"].isna().any() else None
+    
+    if future_start_idx is not None:
+        future_year_start = results_df.loc[future_start_idx, "Year"]
+        # Vertical line do separate prediction
+        fig.add_vline(
+            x=future_year_start - 0.5, 
+            line_width=1, 
+            line_dash="dot", 
+            line_color="gray",
+            annotation_text="Forecast Start", 
+            annotation_position="top right"
+        )
 
     fig.update_layout(
         title=title,
         xaxis_title="Year",
         yaxis_title=target_column,
         hovermode="x unified",
+        template="plotly_dark",
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
     )
     return fig
+
 
 def plot_feature_importance(feature_importance: pd.Series, title: str) -> go.Figure:
     """
     Generates a horizontal bar chart visualization of feature importance scores.
-
-    This function utilizes Plotly to create an interactive visualization, automatically
-    sorting features to highlight the most significant drivers. It includes logic to
-    gracefully handle empty inputs and dynamically scales the chart height to
-    accommodate varying numbers of features without overcrowding.
-
-    Args:
-        feature_importance: A pandas Series where the index represents feature names
-                            and values represent importance scores.
-        title: The title text to display at the top of the chart.
-
-    Returns:
-        A plotly.graph_objects.Figure instance containing the rendered bar chart,
-        or an empty figure if the input data is missing.
     """
     if feature_importance is None or len(feature_importance) == 0:
-        # return blank figure with message
         fig = go.Figure()
-        fig.update_layout(title=title)
+        fig.update_layout(title="No feature importance available")
         return fig
 
-    # ensure it's a Series
     if isinstance(feature_importance, pd.DataFrame):
-        # allow DataFrame with two cols -> series
         if feature_importance.shape[1] >= 2:
-            feature_importance = pd.Series(data=feature_importance.iloc[:, 1].values, index=feature_importance.iloc[:, 0].values)
+            feature_importance = pd.Series(
+                data=feature_importance.iloc[:, 1].values, 
+                index=feature_importance.iloc[:, 0].values
+            )
 
     fi = feature_importance.copy()
-    # sort ascending for horizontal bar
     fi = fi.sort_values(ascending=True)
+    
     fig = px.bar(
         x=fi.values,
         y=fi.index,
         orientation='h',
-        labels={'x': 'Importance', 'y': 'Feature'},
-        title=title
+        labels={'x': 'Relative Importance (%)', 'y': 'Feature'},
+        title=title,
+        text_auto='.1f'
     )
-    fig.update_layout(margin=dict(l=150, r=20, t=50, b=20), height=max(300, 30 * len(fi)))
+    
+    fig.update_traces(textposition='outside', marker_color='#3498DB')
+    
+    fig.update_layout(
+        margin=dict(l=20, r=20, t=50, b=20), 
+        height=max(300, 40 * len(fi)),
+        template="plotly_dark"
+    )
     return fig
-
-def prepare_plot_data(model_entry: Dict[str, Any], end_year: int) -> Tuple[pd.DataFrame, pd.Series, pd.Series]:
-    """
-    Prepares data for plotting predictions vs actuals with future forecast.
-
-    This function extracts the necessary data from a model entry dictionary,
-    generates future predictions, and combines training, test, and future data
-    for visualization purposes.
-
-    Args:
-        model_entry (Dict[str, Any]): Dictionary containing model artifacts:
-            - trained_model: The trained model instance
-            - X_train: Training features DataFrame
-            - y_train: Training target Series
-            - X_test: Test features DataFrame
-            - y_test: Test target Series
-        end_year (int): The last year in the training data.
-
-    Returns:
-        Tuple containing:
-        - combined_X (pd.DataFrame): Combined features for train, test, and future years
-        - combined_y_actual (pd.Series): Combined actual values (with NaNs for future)
-        - combined_y_pred (pd.Series): Combined predicted values for all periods
-    """
-    # Extract data from model entry
-    model = model_entry['trained_model']
-    X_train = model_entry['X_train']
-    y_train = model_entry['y_train']
-    X_test = model_entry['X_test']
-    y_test = model_entry['y_test']
-
-    # Generate predictions for training and test sets
-    y_pred_train = model.predict(X_train)
-    y_pred_test = model.predict(X_test)
-
-    # Generate future years for prediction (5-year forecast)
-    future_years = pd.DataFrame(
-        {'year': range(end_year + 1, end_year + 6)}
-    )
-
-    # Populate other features using the last known values from X_test
-    other_features = X_test.drop(columns=['year'], errors='ignore').columns
-    for feature in other_features:
-        future_years[feature] = X_test[feature].iloc[-1]
-
-    # Make predictions for future years
-    y_pred_future = model.predict(future_years)
-
-    # Combine X_train, X_test, and future_years for plotting
-    combined_X = pd.concat(
-        [X_train, X_test, future_years], ignore_index=True
-    )
-
-    # Combine y_train (actuals for training), y_test (actuals for test), and NaNs for future years
-    combined_y_actual = pd.Series(
-        np.concatenate([
-            y_train.values,
-            y_test.values,
-            np.full(len(future_years), np.nan)
-        ]),
-        index=combined_X.index
-    )
-
-    # Combine y_pred_train, y_pred_test, and y_pred_future for plotting
-    combined_y_pred = pd.Series(
-        np.concatenate([y_pred_train, y_pred_test, y_pred_future]),
-        index=combined_X.index
-    )
-
-    return combined_X, combined_y_actual, combined_y_pred
