@@ -3,23 +3,32 @@ from datetime import datetime
 import pandas as pd
 
 def render_sidebar(countries: dict, model_names: list, indicators: dict) -> dict:
-    """Renders the sidebar and returns selected configuration."""
+    """
+    Renders the sidebar and returns selected configuration.
+    Uses st.form to batch inputs and prevent unnecessary reloads (resets).
+    """
     with st.sidebar:
         st.image("https://streamlit.io/images/brand/streamlit-logo-secondary-colormark-darktext.png", width=200)
         st.title("⚙️ Configuration Panel")
         
-        country_names = list(countries.keys())
-        selected_country_name = st.selectbox("Select Country", country_names)
-        
-        selected_model = st.selectbox("Select Model", model_names)
-        selected_target = st.selectbox("Select Target Column", list(indicators.values()))
+        with st.form("model_configuration_form"):
+            
+            country_names = list(countries.keys())
+            # index=0 (std value)
+            selected_country_name = st.selectbox("Select Country", country_names, index=0)
+            
+            selected_model = st.selectbox("Select Model", model_names, index=0)
+            selected_target = st.selectbox("Select Target Column", list(indicators.values()), index=0)
+            
+            st.markdown("---")
+            
+            # The page only reloads with this button
+            train_clicked = st.form_submit_button("Train Model & Predict", type="primary", use_container_width=True)
         
         st.markdown("---")
+        st.caption("Load Existing Model")
         
-        train_clicked = st.button("Train Model & Predict", type="primary", use_container_width=True)
-        
-        # File uploader
-        uploaded_file = st.file_uploader("Or upload a previously trained model", type=["pkl"])
+        uploaded_file = st.file_uploader("Upload .pkl file", type=["pkl"])
         
         return {
             "country_name": selected_country_name,
@@ -56,10 +65,17 @@ def render_prediction_banner(prediction: float, target_name: str, year: int, is_
         st.metric(label="Predicted Value", value=fmt.format(prediction))
 
 def apply_custom_styles():
-    """Injects CSS."""
+    """
+    Injects custom CSS to improve the app's visual layout.
+    """
     st.markdown("""
         <style>
+            /* Prevents text selection on metric widgets for a cleaner UI feel */
             .stMetric { user-select: none; }
-            /* Add your other CSS here */
+
+            /* Adds top padding to the sidebar to prevent content from touching the edge */
+            div[data-testid="stSidebarUserContent"] {
+                padding-top: 2rem;
+            }
         </style>
-    """, unsafe_allow_html=True)
+    """, unsafe_allow_html=True) # Required argument to allow raw HTML/CSS
