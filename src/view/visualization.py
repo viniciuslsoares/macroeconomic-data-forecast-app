@@ -6,7 +6,7 @@ def plot_indicator_trend(df: pd.DataFrame, indicator: str, title: str) -> go.Fig
     """
     Generates a line chart for a given indicator over time.
     """
-    # Garante ordenação por ano
+    # Ensure sorting by year
     df_sorted = df.sort_values(by="year")
     
     fig = px.line(df_sorted, x="year", y=indicator, title=title, markers=True)
