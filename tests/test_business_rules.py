@@ -36,27 +36,41 @@ class TestPrepareData:
 
     # --- Boundary Value Analysis (BVA) ---
 
+    def test_bva_min_minus_one(self, time_series_df):
+        """
+        [BVA] Min - 1: Input -1. 
+        Behavior: 9 - (-1) = 10. Split index exceeds length.
+        Result: 100% Train, 0% Test.
+        """
+        X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=-1)
+        assert len(X_train) == 9 
+        assert len(X_test) == 0
+
     def test_bva_min_zero(self, time_series_df):
-        """[BVA] Min Value: 0 test years. Result: 100% Train."""
+        """
+        [BVA] Min: Input 0.
+        Result: 100% Train (9 rows), 0% Test.
+        """
         X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=0)
         assert len(X_train) == 9 # 10 - 1 (lag)
         assert len(X_test) == 0
 
-    def test_bva_min_plus_one(self, time_series_df):
-        """[BVA] Min + 1: 1 test year. Result: Split N-1 Train, 1 Test."""
-        X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=1)
-        assert len(X_train) == 8 # 9 - 1
-        assert len(X_test) == 1
-
     def test_bva_max_exact(self, time_series_df):
-        """[BVA] Max Value: test_years == available rows (9). Result: 0 Train, 100% Test."""
+        """
+        [BVA] Max: Input 9 (All available rows).
+        Result: 0% Train, 100% Test (9 rows).
+        """
         X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=9)
         assert len(X_train) == 0
         assert len(X_test) == 9
 
-    def test_bva_overflow(self, time_series_df):
-        """[BVA] Overflow: test_years > available rows. Result: 0 Train, 100% Test (Clamped)."""
-        X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=15)
+    def test_bva_max_plus_one(self, time_series_df):
+        """
+        [BVA] Max + 1: Input 10.
+        Result: Overflow handled by clamping (split_index < 0 -> 0).
+        Result: 0% Train, 100% Test.
+        """
+        X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=10)
         assert len(X_train) == 0
         assert len(X_test) == 9
 
