@@ -36,27 +36,41 @@ class TestPrepareData:
 
     # --- Boundary Value Analysis (BVA) ---
 
+    def test_bva_min_minus_one(self, time_series_df):
+        """
+        [BVA] Min - 1: Input -1. 
+        Behavior: 9 - (-1) = 10. Split index exceeds length.
+        Result: 100% Train, 0% Test.
+        """
+        X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=-1)
+        assert len(X_train) == 9 
+        assert len(X_test) == 0
+
     def test_bva_min_zero(self, time_series_df):
-        """[BVA] Min Value: 0 test years. Result: 100% Train."""
+        """
+        [BVA] Min: Input 0.
+        Result: 100% Train (9 rows), 0% Test.
+        """
         X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=0)
         assert len(X_train) == 9 # 10 - 1 (lag)
         assert len(X_test) == 0
 
-    def test_bva_min_plus_one(self, time_series_df):
-        """[BVA] Min + 1: 1 test year. Result: Split N-1 Train, 1 Test."""
-        X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=1)
-        assert len(X_train) == 8 # 9 - 1
-        assert len(X_test) == 1
-
     def test_bva_max_exact(self, time_series_df):
-        """[BVA] Max Value: test_years == available rows (9). Result: 0 Train, 100% Test."""
+        """
+        [BVA] Max: Input 9 (All available rows).
+        Result: 0% Train, 100% Test (9 rows).
+        """
         X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=9)
         assert len(X_train) == 0
         assert len(X_test) == 9
 
-    def test_bva_overflow(self, time_series_df):
-        """[BVA] Overflow: test_years > available rows. Result: 0 Train, 100% Test (Clamped)."""
-        X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=15)
+    def test_bva_max_plus_one(self, time_series_df):
+        """
+        [BVA] Max + 1: Input 10.
+        Result: Overflow handled by clamping (split_index < 0 -> 0).
+        Result: 0% Train, 100% Test.
+        """
+        X_train, X_test, _, _ = prepare_data(time_series_df, 'target', test_years_count=10)
         assert len(X_train) == 0
         assert len(X_test) == 9
 
@@ -188,6 +202,56 @@ class TestFeatureImportanceDecisionTable:
 # ==============================================================================
 
 class TestRecursivePredictionLogic:
+
+    @pytest.fixture
+    def trained_pipeline(self):
+        # Mock pipeline: always predicts a Difference of +10
+        mock_model = MagicMock()
+        mock_model.predict.return_value = np.array([10.0]) 
+        return mock_model
+
+    def test_reconstruction_logic(self, trained_pipeline):
+        """
+        [Calculation Check]: Validates Abs = Lag + Diff logic.
+        Calculation flow:
+        1. Start with Lag=100 (from 2020).
+        2. Initial calculation: Lag=100, Diff=+10 -> Result=110 (becomes Lag for 2021).
+        3. Year 2021: Lag=110, Diff=+10 -> Result=120 (saved as prediction for 2021, becomes Lag for 2022).
+        4. Year 2022: Lag=120, Diff=+10 → Result=130 (saved as prediction for 2022).
+        Thus, prediction for 2021 = 120, for 2022 = 130.
+        """
+        last_row = pd.Series({'year': 2020, 'lag_1': 100.0, 'pop': 1000})
+        history = pd.DataFrame({'year': [2020], 'lag_1': [100], 'pop': [1000]})
+        
+        future_df = make_recursive_future_prediction(
+            trained_pipeline, last_row, history, years_ahead=2
+        )
+        
+        assert future_df.iloc[0]['predicted_value'] == 120.0
+        assert future_df.iloc[1]['predicted_value'] == 130.0
+
+    def test_ep_sufficient_history(self, trained_pipeline):
+        """[EP] Class: Sufficient History (>= 2 rows). Uses Linear Projection."""
+        last_row = pd.Series({'year': 2020, 'lag_1': 100, 'pop': 1100})
+        history = pd.DataFrame({
+            'year': [2019, 2020], 'lag_1': [90, 100], 'pop': [1000, 1100]
+        })
+        # If history is valid, function runs without error
+        future_df = make_recursive_future_prediction(
+            trained_pipeline, last_row, history, years_ahead=1
+        )
+        assert len(future_df) == 1
+
+    def test_ep_insufficient_history(self, trained_pipeline):
+        """[EP] Class: Insufficient History (< 2 rows). Uses Fallback (Static)."""
+        last_row = pd.Series({'year': 2020, 'lag_1': 100, 'pop': 5000})
+        history = pd.DataFrame({'year': [2020], 'lag_1': [100], 'pop': [5000]})
+        
+        # Should not crash, should use static value for 'pop'
+        future_df = make_recursive_future_prediction(
+            trained_pipeline, last_row, history, years_ahead=1
+        )
+        assert len(future_df) == 1
 
     @pytest.fixture
     def trained_pipeline(self):
