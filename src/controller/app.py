@@ -214,10 +214,14 @@ def main():
             st.write("")
 
             # 2. Metrics Section (View Component)
-            render_metrics_section(st.session_state["metrics"], is_eco)
+            model_details = {
+                "model": st.session_state.get("selected_model_name", user_input["model"]),
+                "country": st.session_state.get("selected_country_name", user_input["country_name"]),
+                "target": st.session_state["target_column"]
+            }
+            render_metrics_section(st.session_state["metrics"], model_details, is_eco)
 
             st.write("")
-
             # 3. Main Chart: Actual vs Predicted
             with st.container(border=True):
                 st.subheader("🎯 Actual vs. Predicted Values")

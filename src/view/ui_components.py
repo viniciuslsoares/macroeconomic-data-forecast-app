@@ -39,22 +39,32 @@ def render_sidebar(countries: dict, model_names: list, indicators: dict) -> dict
             "uploaded_file": uploaded_file
         }
 
-def render_metrics_section(metrics: dict, is_economic: bool):
-    """Renders the metrics cards."""
+def render_metrics_section(metrics: dict, model_details: dict, is_economic: bool):
+    """
+    Renders the metrics cards and model details.
+    
+    Args:
+        metrics: Dictionary containing MAE, MSE, R2.
+        model_details: Dictionary containing 'model', 'country', 'target'.
+        is_economic: Boolean to format currency.
+    """
     col1, col2 = st.columns(2)
     
     fmt = "${:,.0f}" if is_economic else "{:,.0f}"
     
     with col1:
         with st.container(border=True):
-            st.subheader("📊 Model Performance Metrics")
+            st.subheader("📊 Model Performance")
             st.metric("Mean Absolute Error (MAE)", fmt.format(metrics['mae']))
             st.metric("R-squared (R²)", f"{metrics['r2_score']:.3f}")
             
     with col2:
         with st.container(border=True):
             st.subheader("🤖 Model Info")
-            st.info("Metrics calculated on unseen test data.")
+            st.markdown(f"**Algorithm:** {model_details.get('model', 'Unknown')}")
+            st.markdown(f"**Country:** {model_details.get('country', 'Unknown')}")
+            st.markdown(f"**Target:** {model_details.get('target', 'Unknown')}")
+            st.caption("Metrics calculated on unseen test data (Test Set).")
 
 def render_prediction_banner(prediction: float, target_name: str, year: int, is_economic: bool):
     """Renders the big prediction number."""
