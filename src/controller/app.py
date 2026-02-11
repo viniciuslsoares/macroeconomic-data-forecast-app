@@ -194,7 +194,7 @@ def main():
                     indicator_to_plot, 
                     f"{indicator_to_plot} Trend"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
 
     # --- TAB 2: Model Prediction ---
     with tab2:
@@ -270,7 +270,7 @@ def main():
                     f"Forecast for {user_input['country_name']}",
                     st.session_state["target_column"]
                 )
-                st.plotly_chart(fig_pred, use_container_width=True)
+                st.plotly_chart(fig_pred, width='stretch')
 
             # 4. Feature Importance
             fi = st.session_state.get('feature_importance', None)
@@ -289,7 +289,7 @@ def main():
                     # Normalize to %
                     fi = (fi / fi.sum()) * 100
                     fig_fi = plot_feature_importance(fi, "Key Drivers (%)")
-                    st.plotly_chart(fig_fi, use_container_width=True)
+                    st.plotly_chart(fig_fi, width='stretch')
                 else:
                     st.info("No features to display.")
 
@@ -420,7 +420,7 @@ def main():
                             fi_plot = (fi_plot / fi_plot.sum()) * 100
                             fig = plot_feature_importance(fi_plot, "")
                             fig.update_layout(height=250, margin=dict(l=0, r=0, t=20, b=0))
-                            st.plotly_chart(fig, use_container_width=True)
+                            st.plotly_chart(fig, width='stretch')
                         else:
                             st.caption("No features to display (lag_1 hidden).")
                     else:
@@ -431,7 +431,7 @@ def main():
                     st.caption(f"**Model A: {mod_a['model_name']}**")
                     cX, cY, cpY = get_plot_data(mod_a)
                     fig_a = plot_predictions_vs_actuals(cX, cY, cpY, "", mod_a["target_column"])
-                    st.plotly_chart(fig_a, use_container_width=True)
+                    st.plotly_chart(fig_a, width='stretch')
                     
                     st.divider()
                     render_comparison_fi(mod_a, "A")
@@ -441,7 +441,7 @@ def main():
                     st.caption(f"**Model B: {mod_b['model_name']}**")
                     cX, cY, cpY = get_plot_data(mod_b)
                     fig_b = plot_predictions_vs_actuals(cX, cY, cpY, "", mod_b["target_column"])
-                    st.plotly_chart(fig_b, use_container_width=True)
+                    st.plotly_chart(fig_b, width='stretch')
                     
                     st.divider()
                     render_comparison_fi(mod_b, "B")

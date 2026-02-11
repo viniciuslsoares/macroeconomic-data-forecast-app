@@ -23,7 +23,7 @@ def render_sidebar(countries: dict, model_names: list, indicators: dict) -> dict
             st.markdown("---")
             
             # The page only reloads with this button
-            train_clicked = st.form_submit_button("Train Model & Predict", type="primary", use_container_width=True)
+            train_clicked = st.form_submit_button("Train Model & Predict", type="primary", width='stretch')
         
         st.markdown("---")
         st.caption("Load Existing Model")
