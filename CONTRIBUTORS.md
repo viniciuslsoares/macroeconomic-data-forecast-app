@@ -1,4 +1,4 @@
-- Vinicius Leme Soares (RA260727)
-- Caio Azevedo Dal Porto (RA256709)
-- Eduardo Rittner Coelho (RA250960)
-- Lucas Bellusci D'Andréa (RA206009)
+- [Caio Azevedo Dal Porto](https://github.com/lcaioporto)
+- [Eduardo Rittner Coelho](https://github.com/eduardorittner)
+- [Lucas Bellusci D'Andréa](https://github.com/lucasbdandrea)
+- [Vinicius Leme Soares](https://github.com/viniciuslsoares)

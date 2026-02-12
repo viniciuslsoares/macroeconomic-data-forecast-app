@@ -1,14 +1,5 @@
 # 📈 Application for Macroeconomic Data Forecast
 
-**Developers:**
-
-- [Caio Azevedo Dal Porto](https://github.com/lcaioporto)
-- [Eduardo Rittner Coelho](https://github.com/eduardorittner)
-- [Lucas Bellusci D'Andréa](https://github.com/lucasbdandrea)
-- [Vinicius Leme Soares](https://github.com/viniciuslsoares)
-
----
-
 ## 🚀 How to Run
 Initially, ensure you have Python 3.13 installed on your machine.
 
@@ -68,7 +59,7 @@ This diagram defines the system's boundaries and its interactions with external 
 This level zooms in to show the high-level technology choices.
 - **Web Application (Frontend/Streamlit)**: Handles the rendering of the user interface directly in the browser. It is responsible for capturing user inputs and displaying the Plotly charts.
 - **Web Application (Backend/Python)**: Acts as the orchestrator. It processes the business logic, manages the data flow, and executes the machine learning training pipelines.
-- **Communication**: The internal communication between the frontend and backend logic is handled seamlessly by Streamlit, while external data is fetched via HTTP requests to the World Bank API.
+- **Communication**: The internal communication between the frontend and backend logic is handled by Streamlit, while external data is fetched via HTTP requests to the World Bank API.
 
 ![Container Diagram](imgs/container_diagram.png)
 
