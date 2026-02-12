@@ -141,7 +141,7 @@ To ensure model robustness and a higher prediction accuracy, this project consid
 
 Economic data (like GDP or Population) often exhibits a strong upward trend, making it non-stationary. Standard regression models would often predict values that drift indefinitely.
 
-To solve this problem, instead of predicting the absolute value $Y_t$, our pipeline trains on the difference $\Delta Y_t = Y_t - Y_{t-1}$. As a result, the models learn the **rate of change** rather than memorizing the scale, allowing them to generalize better across different economic cycles. The final prediction is then reconstructed using the equation: $\hat{Y}_{t} = Y_{t-1} + \widehat{\Delta Y}_{t}$.
+To solve this problem, instead of predicting the absolute value $Y_t$, our pipeline trains on the difference $\Delta Y_t = Y_t - Y_{t-1}$. As a result, the models learn the **rate of change** rather than memorizing the scale, allowing them to generalize better across different economic cycles. The final prediction is then reconstructed using the equation: $\hat{Y_t} = Y_{t-1} + \widehat{\Delta Y_t}$.
 
 ### Recursive Forecasting
 
