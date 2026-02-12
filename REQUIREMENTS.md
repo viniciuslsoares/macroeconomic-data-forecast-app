@@ -1,86 +1,86 @@
-# Relatório de Elicitação de Requisitos - Avaliação A3
+# Requirements Elicitation Report
 
-## Introdução
+## Introduction
 
-Este documento detalha o processo de elicitação de requisitos. O objetivo desta fase é compreender as necessidades e os desafios do nosso público-alvo, para que possamos construir uma ferramenta que agregue valor real.
+This document details the requirements elicitation process. The goal is to understand the needs and challenges of our target audience, ensuring that we build a tool that delivers real value.
 
-Para esta análise, empregamos uma combinação de duas técnicas ágeis: **Mapeamento da Jornada do Usuário** e **Brainstorming**. A primeira nos ajudou a identificar os problemas (dores), e a segunda, a gerar soluções (funcionalidades).
-
----
-
-## Técnica 1: Mapeamento da Jornada do Usuário (User Journey Mapping)
-
-### Descrição do Processo
-
-Para guiar o desenvolvimento, utilizamos a técnica de Mapeamento da Jornada do Usuário, que se baseia na criação de cenários para visualizar a experiência do usuário de ponta a ponta. Este método nos permitiu mapear as ações, emoções e frustrações de um usuário típico ao interagir com um problema que nossa ferramenta se propõe a resolver, revelando oportunidades claras para a criação de funcionalidades de alto valor.
-
-### Perfil da Persona
-
-Para tornar a jornada concreta, criamos uma persona que representa nosso público-alvo principal.
-
-- **Nome:** Ana Costa
-- **Idade:** 22 anos
-- **Ocupação:** Estudante universitária de Economia.
-- **Objetivo:** Coletar, visualizar e comparar dados socioeconômicos (PIB, uso de internet, etc.) de diferentes países para sua tese. Ela também deseja gerar uma previsão simples para fortalecer seus argumentos, mas não possui conhecimento avançado em Machine Learning.
-- **Frustrações:** Perde muito tempo navegando em portais de dados governamentais, baixando e limpando planilhas. Acha o processo de treinar modelos de ML intimidante e tem dificuldade para interpretar suas predições.
-
-### Cenário (Objetivo da Jornada)
-
-Ana precisa comparar a evolução do PIB e do percentual de uso da internet entre Brasil e Canadá para sua tese. Além disso, ela quer gerar uma previsão do PIB para o próximo ano para incluir em sua análise de tendências.
-
-### Evidência (Mapa da Jornada)
-
-O mapa abaixo representa a jornada da Ana. As oportunidades identificadas foram a matéria-prima para a sessão de brainstorming.
-
-
-| Etapas da Jornada                        | Descoberta e Acesso                                                            | Seleção e Visualização de Dados                                                                                | Treinamento do Modelo                                                                                              | Análise dos Resultados                                                                                             |
-| :--------------------------------------- | :----------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------- |
-| **História**                             | Ana ouve falar de uma nova ferramenta para análise de dados e decide testá-la. | Com a ferramenta aberta, Ana seleciona os países e os indicadores que precisa para sua pesquisa.               | Curiosa com a função de previsão, Ana decide treinar um modelo para estimar o PIB do próximo ano.                  | O aplicativo exibe a previsão e as métricas de performance do modelo treinado.                                     |
-| **Ações**                                | Acessa o link do aplicativo.                                                   | 1. Seleciona "Brasil" e "Canadá".<br>2. Escolhe os indicadores (PIB, etc.).<br>3. Observa os gráficos gerados. | 1. Navega para a aba de ML.<br>2. Escolhe um modelo (ex: Regressão Linear).<br>3. Clica no botão "Treinar Modelo". | 1. Lê o valor da predição.<br>2. Olha as métricas (MAE, R², etc.).<br>3. Analisa o gráfico de "Previsto vs. Real". |
-| **Pontos de Contato**                    | Página inicial do Streamlit.                                                   | Sidebar de configuração e a aba de "Exploração de Dados".                                                      | Sidebar e o botão de treino na aba de "Modelagem".                                                                 | Os containers de resultados na aba de "Modelagem".                                                                 |
-| **Emoções**                              | 🤔 Curiosa                                                                     | 😊 Satisfeita                                                                                                  | 😬 Apreensiva                                                                                                      | 🤯 Confusa / 😄 Impressionada                                                                                      |
-| **Pontos de Dor**                        | "Será que é confiável? De onde vêm os dados?"                                  | "Gostaria de comparar dois indicadores no mesmo gráfico."                                                      | "Qual modelo eu escolho? Não entendo a diferença entre eles."                                                      | "O que significa 'R² = 0.85'? Como cada dado impacta na predição do modelo?"                                                                 |
-| **Oportunidades (Ações nos Bastidores)** | Exibir a fonte dos dados (Banco Mundial) e a data da última atualização.       | Criar um gráfico comparativo com múltiplos eixos.                                                              | Adicionar _tooltips_ ou textos de ajuda explicando cada modelo de forma simples.                                   | Apresentar métricas com textos explicativos e incluir técnicas de explicabilidade.                                 |
+For this analysis, we employed a combination of two agile techniques: **User Journey Mapping** and **Brainstorming**. The former helped us identify the problems, while the latter helped us generate solutions (features).
 
 ---
 
-## Técnica 2: Brainstorming
+## Technique 1: User Journey Mapping
 
-### Descrição do Processo
+### Process Description
 
-Após mapear a jornada e identificar as dores da Ana, realizamos uma sessão de brainstorming para gerar ideias de funcionalidades. A sessão foi focada na seguinte pergunta-guia: **"Como podemos transformar as dores da Ana (complexidade, falta de confiança e dificuldade de interpretação) em funcionalidades que tornem nossa ferramenta poderosa, intuitiva e confiável?"**. As ideias foram geradas e depois agrupadas em temas, que se tornarão nossos Épicos.
+To guide development, we utilized the User Journey Mapping technique, which relies on creating scenarios to visualize the end-to-end user experience. This method allowed us to map the actions, emotions, and frustrations of a typical user when interacting with the problem our tool aims to solve, revealing clear opportunities for creating high-value features.
 
-### Evidência (Resultado do Brainstorming)
+### Persona Profile
 
-A estrutura abaixo representa o resultado da nossa sessão de brainstorming, com as ideias clusterizadas.
+To make the journey concrete, we created a persona representing our primary target audience.
 
-#### Tema 1: Análise e Visualização de Dados (Feature da Issue #1)
+- **Name:** Ana Costa
+- **Age:** 22
+- **Occupation:** Undergraduate Economics Student.
+- **Goal:** Collect, visualize, and compare socioeconomic data (GDP, internet usage, etc.) from different countries for her thesis. She also wants to generate a simple forecast to strengthen her arguments but lacks advanced knowledge in Machine Learning.
+- **Frustrations:** Wastes significant time navigating government data portals, downloading, and cleaning spreadsheets. Finds the process of training ML models intimidating and struggles to interpret their predictions.
 
-- **Ideias:**
-  - Permitir a seleção de múltiplos países para comparação lado a lado.
-  - Permitir a plotagem de dois indicadores diferentes no mesmo gráfico, com eixos Y distintos.
-  - Adicionar um botão para "Exportar Gráfico como PNG".
-  - Exibir a fonte dos dados e a data da última atualização de forma proeminente.
-  - Adicionar um seletor de escala para os gráficos (Linear vs. Log).
+### Scenario (Journey Goal)
 
-#### Tema 2: Machine Learning Descomplicado (Feature da Issue #2)
+Ana needs to compare the evolution of GDP and the percentage of internet usage between Brazil and Canada for her thesis. Additionally, she wants to generate a GDP forecast for the upcoming year to include in her trend analysis.
 
-- **Ideias:**
-  - Adicionar um ícone de ajuda `(?)` ao lado de cada modelo com uma explicação simples do seu funcionamento.
-  - Além das métricas, mostrar uma interpretação textual da performance (ex: "Este modelo teve uma boa aderência aos dados de teste.").
-  - Exibir um gráfico de "Importância das Features" para mostrar o que mais influenciou a predição.
-  - Permitir que o usuário ajuste a porcentagem de divisão entre treino e teste (ex: 80/20, 70/30).
+### Evidence (Journey Map)
 
-#### Tema 3: Dashboard e Usabilidade (Feature da Issue #3)
+The map below represents Ana's journey. The identified opportunities served as the raw material for the brainstorming session.
 
-- **Ideias:**
-  - Criar uma aba/seção de "Relatório" que resume todas as seleções e resultados para fácil captura de tela.
-  - Adicionar um botão para "Exportar dados da tabela como CSV".
-  - Implementar um "Modo de Apresentação" que esconde os menus e deixa apenas os gráficos e resultados visíveis.
-  - Guardar a última seleção do usuário (país, modelo) no cache do navegador para a próxima visita.
 
-## Conclusão da Elicitação
+| Journey Stages | Discovery and Access | Data Selection and Visualization | Model Training | Results Analysis |
+| :--- | :--- | :--- | :--- | :--- |
+| **Story** | Ana hears about a new data analysis tool and decides to test it out. | With the tool open, Ana selects the countries and indicators she needs for her research. | Curious about the forecasting function, Ana decides to train a model to estimate next year's GDP. | The app displays the prediction and the performance metrics of the trained model. |
+| **Actions** | Navigates to the application link. | 1. Selects "Brazil" and "Canada".<br>2. Chooses indicators (GDP, etc.).<br>3. Observes the generated charts. | 1. Navigates to the ML tab.<br>2. Chooses a model (e.g., Linear Regression).<br>3. Clicks the "Train Model" button. | 1. Reads the predicted value.<br>2. Checks metrics (MAE, R², etc.).<br>3. Analyzes the "Predicted vs. Actual" chart. |
+| **Touchpoints** | Streamlit Home Page. | Configuration Sidebar and the "Data Exploration" tab. | Sidebar and the train button in the "Modeling" tab. | Result containers in the "Modeling" tab. |
+| **Emotions** | 🤔 Curious | 😊 Satisfied | 😬 Apprehensive | 🤯 Confused / 😄 Impressed |
+| **Pain Points** | "Is this reliable? Where does the data come from?" | "I wish I could compare two indicators on the same chart." | "Which model should I choose? I don't understand the difference between them." | "What does 'R² = 0.85' mean? How does each data point impact the model's prediction?" |
+| **Opportunities (Backstage Actions)** | Display the data source (World Bank) and the last update date. | Create a comparative chart with multiple axes (dual-axis). | Add tooltips or help text explaining each model in simple terms. | Present metrics with explanatory text and include explainability techniques (XAI). |
 
-A combinação das técnicas de Mapeamento da Jornada do Usuário e Brainstorming se mostrou extremamente eficaz. Conseguimos partir de um cenário de uso realista, identificar frustrações concretas e traduzi-las em um conjunto rico de ideias para funcionalidades. Este processo garante que nosso backlog não seja apenas uma lista de tarefas técnicas, mas sim um plano de ação orientado a gerar valor para nossa persona, Ana. As ideias agrupadas por temas servirão como base para a criação dos Épicos e Histórias de Usuário na próxima etapa do projeto.
+---
+
+## Technique 2: Brainstorming
+
+### Process Description
+
+After mapping the journey and identifying Ana's pain points, we held a brainstorming session to generate feature ideas. The session focused on the following guiding question: "How can we transform Ana's pain points (complexity, lack of trust, and difficulty in interpretation) into features that make our tool powerful, intuitive, and reliable?". The ideas generated were then grouped into themes, which will become our Epics.
+
+### Evidence (Brainstorming Results)
+
+The structure below represents the outcome of our brainstorming session, with ideas clustered by theme.
+
+#### Theme 1: Data Analysis and Visualization
+
+- **Ideas:**
+  - Allow selection of multiple countries for side-by-side comparison.
+  - Allow plotting of two different indicators on the same chart, using distinct Y-axes.
+  - Add a button to "Export Chart as PNG".
+  - Display the data source and the date of the last update.
+  - Add a scale selector for the charts (Linear vs. Log).
+
+#### Theme 2: Uncomplicated Machine Learning
+
+- **Ideas:**
+  - Add a help icon `(?)` next to each model with a simple explanation of how it works.
+  - In addition to metrics, show a textual interpretation of performance (e.g., "This model fit the test data well.").
+  - Display a "Feature Importance" chart to show what influenced the prediction the most.
+  - Allow the user to adjust the train/test split percentage (e.g., 80/20, 70/30).
+
+#### Theme 3: Dashboard and Usability
+
+- **Ideas:**
+  - Create a "Report" tab/section that summarizes all selections and results for easy screenshotting.
+  - Add a button to "Export Table Data as CSV".
+  - Implement a "Presentation Mode" that hides menus and leaves only charts and results visible.
+  - Cache the user's last selection (country, model) in the browser for their next visit.
+
+## Elicitation Conclusion
+
+The combination of User Journey Mapping and Brainstorming techniques was effective. We managed to start from a realistic usage scenario, identify concrete frustrations, and translate them into a rich set of feature ideas. This process ensures that our backlog is not just a list of technical tasks, but an action plan oriented toward generating value for our persona, Ana. The ideas grouped by themes were fundamental for creating Epics and User Stories to develop the project.
 
 ---
