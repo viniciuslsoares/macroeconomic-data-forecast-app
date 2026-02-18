@@ -5,7 +5,7 @@ Initially, ensure you have Python 3.13 installed on your machine.
 
 Then, you need to clone the repository:
 ```bash
-git clone https://github.com/viniciuslsoares/MC426.git
+git clone https://github.com/viniciuslsoares/macroeconomic-data-forecast-app.git
 ```
 Download the dependencies:
 ```bash
